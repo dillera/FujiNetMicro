@@ -47,7 +47,7 @@ Follow these steps when creating config for a new board:
 
 1. Add a new yaml for the target in `data/webui/config/<fujinet-new-board>.yaml` with appropriate switches for the sections to enable in the webUI (you can copy an existing file and change the boolean values to suit)
 2. Create a directory for the device under `data/webui/device_specific/BUILD_XXX` matching the new name, and put any new files for this device only in here, or create a `.keep` file so that git will include the dir.
-3. Edit the `platformio-sample.ini` adding the new board's information, and your own platformio.ini file to use it
+3. Add a `build-platforms/platformio-<fujinet-new-board>.ini` for the board, and select it with `./build.sh -s <fujinet-new-board>`
 
 You can now build as normal, and the new device's WebUI will be built from the templates.
 

@@ -155,14 +155,6 @@ firmware build and it shows up dirty in `git status`. Never sweep an incidental 
 into an unrelated commit; `git checkout --` it. A deliberate sdkconfig change (flash size, PSRAM
 mode, socket counts) is normal and correct to commit. Read `git diff --stat` before staging.
 
-## Scripts that are broken or obsolete
-
-- `verify-webui.sh`, `verify-webui-progress.sh`, `full-verify.sh` — one-off scripts from an
-  already-merged PR. They `git checkout consolidate-webui` and `full-verify.sh` also stashes your
-  work. Do not run them; `verify-webui.sh` is additionally broken.
-- `fujinet.py` is an empty stub. `.travis.yml`, `platformio-sample.ini` and the README's
-  "MAJOR ANNOUNCEMENT" are dead legacy; do not fix them as part of unrelated work.
-
 ## Code style
 
 `.clang-format` exists (LLVM base, `IndentWidth: 4`, `ColumnLimit: 95`, `UseTab: Never`, Allman
@@ -171,8 +163,6 @@ tree does not conform.
 
 - Match the surrounding file. Never bulk-reformat, and never reformat lines your change does not
   otherwise touch. Do not reorder or sort includes; the formatter is configured not to.
-- `coding-standard.py` checks only trailing whitespace and tabs today (its clang-format path is
-  hard-disabled) and no workflow invokes it. `./coding-standard.py --addhook` installs it locally.
 - Use `std::string`, not Arduino `String`. Prefix new private members with `_`. Use fixed-width
   types and `__attribute__((packed))` structs for wire formats, never `std::string`.
 
