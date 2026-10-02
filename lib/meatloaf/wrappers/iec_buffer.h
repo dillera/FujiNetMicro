@@ -59,7 +59,6 @@
 //             delete[] data;
 //     }
 
-
 //     virtual void open(systemBus* iec) {
 //         m_iec = iec;
 //         setp(data, data+IEC_BUFFER_SIZE);

@@ -12,12 +12,10 @@ fnTask::fnTask()
     _callback = nullptr;
 }
 
-
 fnTask::~fnTask()
 {
     Debug_printf("fnTask::~fnTask #%d\n", _id);
 }
-
 
 fnTestTask::fnTestTask(int count)
 {
@@ -42,7 +40,6 @@ void * fnTestTask::get_result()
     Debug_printf("fnTestTask::get_result #%d\n", _id);
     return nullptr;
 }
-
 
 int fnTestTask::start()
 {

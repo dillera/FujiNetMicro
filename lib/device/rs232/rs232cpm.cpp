@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #define CCP_INTERNAL
 
@@ -22,7 +21,6 @@
 #ifdef CCP_INTERNAL
 # include "../runcpm/ccp.h" // ccp.h - Defines a simple internal CCP
 #endif
-
 
 void rs232CPM::rs232_handle_cpm()
 {
@@ -91,4 +89,3 @@ void rs232CPM::rs232_process(const FujiBusPacket &packet)
     }
 }
 
-#endif /* BUILD_RS232 */

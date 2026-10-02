@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "rs232Network.h"
 
@@ -14,4 +13,3 @@ void rs232Network::fujidev_set_query(const FUJI_COMMAND_PACKET &packet)
     SYSTEM_BUS.transaction_success();
 }
 
-#endif /* BUILD_RS232 */

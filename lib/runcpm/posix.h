@@ -342,5 +342,4 @@ uint8 _RunLuaScript(char* filename) {
 #define POLLRDNORM 0
 #endif
 
-
 #endif

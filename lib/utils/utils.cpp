@@ -222,7 +222,6 @@ std::string util_crunch(std::string filename)
 
     return basename + ext;
 }
-#ifdef BUILD_RS232
 std::string util_entry(std::string crunched, size_t fileSize, bool is_dir, bool is_locked)
 {
     size_t ext_pos = crunched.find_last_of(".");
@@ -245,7 +244,6 @@ std::string util_entry(std::string crunched, size_t fileSize, bool is_dir, bool 
     ext = ext.substr(0,3);
 
     memset(e,0,sizeof(e));
-
 
     if (is_dir)
     {
@@ -278,62 +276,11 @@ std::string util_entry(std::string crunched, size_t fileSize, bool is_dir, bool 
 
     return std::string(e);
 }
-#else
-std::string util_entry(std::string crunched, size_t fileSize, bool is_dir, bool is_locked)
-{
-    std::string returned_entry = "                 ";
-    size_t ext_pos = crunched.find(".");
-    std::string basename = crunched.substr(0, ext_pos);
-    std::string ext = crunched.substr(ext_pos + 1);
-    char tmp[4];
-    unsigned short sectors;
-    std::string sectorStr;
-
-    if (ext_pos != std::string::npos)
-    {
-        returned_entry.replace(10, 3, ext.substr(0, 3));
-    }
-
-    if (is_dir == true)
-    {
-        returned_entry.replace(10, 3, "DIR");
-        returned_entry.replace(0, 1, "/");
-    }
-
-    returned_entry.replace(2, (basename.size() < 8 ? basename.size() : 8), basename);
-
-    if (fileSize > 255744)
-        sectors = 999;
-    else
-    {
-        sectors = fileSize >> 8;
-        if (sectors == 0)
-            sectors = 1; // at least 1 sector.
-    }
-
-    snprintf(tmp, sizeof(tmp), "%03d", sectors);
-    sectorStr = tmp;
-
-    returned_entry.replace(14, 3, sectorStr);
-
-    if (is_locked == true)
-    {
-        returned_entry.replace(0, 1, "*");
-    }
-
-    return returned_entry;
-}
-#endif /* !defined BUILD_RS232 */
 
 std::string util_long_entry(std::string filename, size_t fileSize, bool is_dir, int width)
 {
-#ifdef BUILD_COCO
-#define LONG_ENTRY_RESERVE 6
-#define LONG_ENTRY_EOL "\x0D"
-#else
 #define LONG_ENTRY_RESERVE 7
 #define LONG_ENTRY_EOL "\x9B"
-#endif /* BUILD_COCO */
     // Width comes from the caller (NetworkProtocol::dirLongWidth); guard against
     // an unset value.
     if (width <= 0)
@@ -477,11 +424,7 @@ std::string util_crunch_prodos(std::string filename)
 // Platform-specific filename crunch used by resolve(): ProDOS on Apple II, 8.3 elsewhere.
 std::string util_crunch_platform(std::string filename)
 {
-#ifdef BUILD_APPLE
-    return util_crunch_prodos(filename);
-#else
     return util_crunch(filename);
-#endif
 }
 
 // Map a filename to a 3-char ProDOS file type. Directories are DIR; unknown -> BIN.
@@ -967,115 +910,6 @@ bool util_string_value_is_true(std::string value)
 {
     return util_string_value_is_true(value.c_str());
 }
-
-#ifdef BUILD_ATARI
-/**
- * Ask SAM to say something. see https://github.com/FujiNetWIFI/fujinet-platformio/wiki/Using-SAM-%28Voice-Synthesizer%29
- * @param p The phrase to say.
- * @param phonetic true = enable phonetic mode.
- * @param sing true = enable singing mode.
- * @param pitch Sam's pitch. (1-255) Lower values = Higher pitch. Default is 64. Values below 20 are unusable.
- * @param speed Sam's speed. (1-255) Lower values = higher speed. Default is 72. Values below 20 are usuable.
- * @param mouth The emphasis of transient sounds (1-255), Higher values imply more pronounced mouth movement. Default is 128.
- * @param throat The size of throat, changes resonance of formant sounds (1-255), higher values imply a deeper throat. Default is 128.
- */
-void util_sam_say(const char *p,
-                  bool phonetic,
-                  bool sing,
-                  unsigned char pitch,
-                  unsigned char speed,
-                  unsigned char mouth,
-                  unsigned char throat)
-{
-    int n = 0;
-    char *a[20];
-    char pitchs[4], speeds[4], mouths[4], throats[4]; // itoa temp vars
-
-    // Convert to strings.
-#ifdef ESP_PLATFORM
-    itoa(pitch, pitchs, 10);
-    itoa(speed, speeds, 10);
-    itoa(mouth, mouths, 10);
-    itoa(throat, throats, 10);
-#else
-    snprintf(pitchs, sizeof(pitchs), "%u", pitch);
-    snprintf(speeds, sizeof(speeds), "%u", speed);
-    snprintf(mouths, sizeof(mouths), "%u", mouth);
-    snprintf(throats, sizeof(throats), "%u", throat);
-#endif
-
-    memset(a, 0, sizeof(a));
-    a[n++] = (char *)("sam"); // argv[0] for compatibility
-
-    if (phonetic == true)
-        a[n++] = (char *)("-phonetic");
-
-    if (sing == true)
-        a[n++] = (char *)("-sing");
-
-    a[n++] = (char *)("-pitch");
-    a[n++] = (char *)pitchs;
-
-    a[n++] = (char *)("-speed");
-    a[n++] = (char *)speeds;
-
-    a[n++] = (char *)("-mouth");
-    a[n++] = (char *)mouths;
-
-    a[n++] = (char *)("-throat");
-    a[n++] = (char *)throats;
-
-    // Append the phrase to say.
-    a[n++] = (char *)p;
-    sam(n, a);
-}
-
-/**
- * Say the numbers 1-8 using phonetic tweaks.
- * @param n The number to say.
- */
-void util_sam_say_number(unsigned char n)
-{
-    switch (n)
-    {
-    case 1:
-        util_sam_say("WAH7NQ", true);
-        break;
-    case 2:
-        util_sam_say("TUW7", true);
-        break;
-    case 3:
-        util_sam_say("THRIYY7Q", true);
-        break;
-    case 4:
-        util_sam_say("FOH7R", true);
-        break;
-    case 5:
-        util_sam_say("F7AYVQ", true);
-        break;
-    case 6:
-        util_sam_say("SIH7IHKSQ", true);
-        break;
-    case 7:
-        util_sam_say("SEHV7EHNQ", true);
-        break;
-    case 8:
-        util_sam_say("AEY74Q", true);
-        break;
-    default:
-        Debug_printf("say_number() - Uncaught number %d", n);
-    }
-}
-
-/**
- * Say swap label
- */
-void util_sam_say_swap_label()
-{
-    // DISK
-    util_sam_say("DIHSK7Q ", true);
-}
-#endif
 
 void util_replaceAll(std::string &str, const std::string &from, const std::string &to)
 {

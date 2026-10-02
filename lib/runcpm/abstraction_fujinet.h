@@ -65,7 +65,6 @@ char *full_path(char *fn)
     return full_filename;
 }
 
-
 //
 // Hardware functions, new in 5.x
 //
@@ -508,11 +507,6 @@ uint8_t _sys_makedisk(uint8_t drive)
 
 /* Console abstraction functions */
 /*===============================================================================*/
-
-#ifdef BUILD_ATARI
-#define BYPASS_BUS 1
-#endif
-
 
 #ifdef BYPASS_BUS
 #define _kbhit() SYSTEM_BUS.available()

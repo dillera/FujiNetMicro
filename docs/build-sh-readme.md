@@ -63,7 +63,7 @@ See also the "Companion MCU (RP2040/RP2350) firmware" section below for the `[fu
 #### FujiNet PC (CMake) Options
 
 - `-c`: Run clean before build
-- `-p TGT`: Perform PC build for given target (e.g., APPLE|ATARI)
+- `-p TGT`: Perform PC build for given target (RS232)
 - `-g`: Enable debug in generated FujiNet PC executable
 - `-G GEN`: Use GEN as the Generator for CMake (e.g., -G "Unix Makefiles")
 
@@ -89,9 +89,9 @@ See also the "Companion MCU (RP2040/RP2350) firmware" section below for the `[fu
    ./build.sh -cbum
    ```
 
-4. PC build for ATARI target with debug enabled:
+4. PC build for RS232 target with debug enabled:
    ```
-   ./build.sh -p ATARI -g
+   ./build.sh -p RS232 -g
    ```
 
 5. Setup a new board configuration:
@@ -108,8 +108,8 @@ The script uses two main configuration files:
 
 ## Companion MCU (RP2040/RP2350) firmware
 
-Some boards bundle a second, companion-MCU firmware image (e.g. `fujiversal-intv`, which
-embeds the RP2040/RP2350 Minty cartridge firmware) inside the ESP32 build. This is driven
+A board can bundle a second, companion-MCU (RP2040/RP2350) firmware image inside the ESP32
+build. None of the current RS-232 boards do. This is driven
 entirely by `[fujinet]` keys in that board's own `build-platforms/platformio-<board>.ini` --
 no board-specific build scripts are needed:
 
@@ -118,8 +118,7 @@ no board-specific build scripts are needed:
   companion firmware's source lives, how to build it, and which output file(s) to bundle.
   Presence of `pico_src` is what enables the feature; a board with no `pico_src` gets an
   empty (stub) registry and pays no build cost. See the full key table and worked examples
-  as a comment block in `platformio-ini-files/platformio.common.ini`, and
-  `build-platforms/platformio-fujiversal-intv.ini` for a real one.
+  as a comment block in `platformio-ini-files/platformio.common.ini`.
 - `merge_bin` (and `merge_bin_name`) opt a board into `build_merge.py`, which folds the
   bootloader, partition table, and app image into a single flashable `<env>-merged.bin`.
   When set, `./build.sh -u` flashes that single file with `esptool.py` directly instead of
@@ -137,19 +136,6 @@ A board that sets `pico_src` must also put `-D CONFIG_USB_PICOBOOT_HOST_ENABLED=
 `[env:<board>]` `build_flags`: that is what compiles in the ESP32-side updater which pushes
 the image to the companion at boot. `build_pico.py` fails the build if the two disagree,
 because otherwise the firmware would carry the image and silently never flash it.
-
-Two of these boards build from **`pico/fujiversal`, a git submodule**. After a fresh clone:
-
-```
-git submodule update --init pico/fujiversal
-```
-
-`build_pico.py` says exactly that if the submodule is missing, rather than reporting an
-absent `CMakeLists.txt`.
-
-For how the embedded image actually reaches the companion MCU -- the boot sequence, the
-`PICOFW:` log lines, when a reflash happens, the BOOTSEL recovery paths, and what to touch
-when adding another Fujiversal board -- see [fujiversal-flashing.md](fujiversal-flashing.md).
 
 ## Supported Boards
 
@@ -203,7 +189,7 @@ If the stacktrace doesn't work correctly in the monitor, ensure that the `build_
 You can pass additional arguments to the underlying build processes by adding them after a double dash (`--`). For example:
 
 ```
-./build.sh -p APPLE -- -DFOO=BAR
+./build.sh -p RS232 -- -DFOO=BAR
 ```
 
 This passes the `-DFOO=BAR` argument to the CMake process for a PC build.

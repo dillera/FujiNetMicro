@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232 // temporary
 
 #include "diskType.h"
 
@@ -9,7 +8,6 @@
 #include "../../include/debug.h"
 
 #include "utils.h"
-
 
 #define SIDES_SS 0
 #define SIDES_DS 1
@@ -95,4 +93,3 @@ MediaType::~MediaType()
     unmount();
 }
 
-#endif /* BUILD_RS232 */

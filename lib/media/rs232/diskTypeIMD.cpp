@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "diskTypeIMD.h"
 
@@ -268,4 +267,3 @@ void MediaTypeIMD::status(uint8_t statusbuff[4])
     statusbuff[1] = ~_disk_controller_status; // Negate the controller status
 }
 
-#endif /* BUILD_RS232 */

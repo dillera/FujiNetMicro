@@ -5,8 +5,6 @@
 #include "fujiCommandID.h"
 #include "global_types.h"
 
-#ifdef BUILD_RS232
-
 typedef struct
 {
     fujiDeviceID_t device;
@@ -27,31 +25,5 @@ typedef struct
     uint8_t cksum;
 } __attribute__((packed)) cmdFrame_t;
 static_assert(sizeof(cmdFrame_t) == 7, "cmdFrame_t must be 7 bytes");
-
-#else /* ! BUILD_RS232 */
-
-typedef struct
-{
-    union
-    {
-        struct
-        {
-            fujiDeviceID_t device;
-            fujiCommandID_t comnd;
-            union {
-                struct {
-                    uint8_t aux1;
-                    uint8_t aux2;
-                };
-                u16le_t aux12;
-            };
-        };
-        uint32_t commanddata;
-    };
-    uint8_t checksum;
-} __attribute__((packed)) cmdFrame_t;
-static_assert(sizeof(cmdFrame_t) == 5, "cmdFrame_t must be 5 bytes");
-
-#endif /* BUILD_RS232 */
 
 #endif /* CMDFRAME_H */

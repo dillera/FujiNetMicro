@@ -1,5 +1,0 @@
-extends: base
-components:
-  modem_settings: false
-  net_stream: true
-  emulator_settings: true

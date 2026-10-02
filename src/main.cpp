@@ -131,7 +131,6 @@ static void heap_alloc_failed_hook(size_t size, uint32_t caps, const char *funct
 // Palm OS HotSync server; its cradle may share the platform bus port.
 static HotSyncService hotsync;
 
-#ifdef BUILD_RS232
 // Lends the RS232 bus port to a HotSync cradle between bus commands. The
 // main loop spins, so a waiting borrower raises `wanted` to get a turn.
 class Rs232HotSyncPort : public HotSyncBusPort
@@ -180,15 +179,10 @@ private:
     unsigned long _last_packet_ms = 0;
 };
 static Rs232HotSyncPort rs232_hotsync_port;
-#endif
 
 static HotSyncBusPort *hotsync_bus_port()
 {
-#ifdef BUILD_RS232
     return &rs232_hotsync_port;
-#else
-    return nullptr;
-#endif
 }
 
 // Initial setup
@@ -329,88 +323,6 @@ void main_setup(int argc, char *argv[])
 
     // WiFi/BT auto connect moved to app_main()
 
-#ifdef BUILD_ATARI
-    theFuji->setup();
-    SYSTEM_BUS.addDevice(theFuji, FUJI_DEVICEID::FUJINET); // the FUJINET!
-
-    if (Config.get_apetime_enabled() == true)
-        SYSTEM_BUS.addDevice(&platformClock, FUJI_DEVICEID::CLOCK); // APETime compatible, extended for additional return types
-
-#ifdef ESP_PLATFORM
-    SYSTEM_BUS.addDevice(&streamDev, FUJI_DEVICEID::MIDI); // UDP/MIDI device
-#endif
-
-    // add PCLink device only if we have SD card
-    if (fnSDFAT.running())
-    {
-#ifdef ESP_PLATFORM
-        // TODO how to get the folder SD is mounted on?
-        pcLink.mount(1, "/sd"); // mount SD card as PCL1:
-#else
-        pcLink.mount(1, Config.get_general_SD_path().c_str()); // mount SD as PCL1:
-#endif
-        SYSTEM_BUS.addDevice(&pcLink, FUJI_DEVICEID::PCLINK); // PCLink
-    }
-
-    // Create a new printer object, setting its output depending on whether we have SD or not
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    sioPrinter::printer_type ptype = Config.get_printer_type(0);
-    if (ptype == sioPrinter::printer_type::PRINTER_INVALID)
-        ptype = sioPrinter::printer_type::PRINTER_FILE_TRIM;
-
-    Debug_printf("Creating a default printer using %s storage and type %d\r\n", ptrfs->typestring(), ptype);
-
-    sioPrinter *ptr = new sioPrinter(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-
-    SYSTEM_BUS.addDevice(ptr, (fujiDeviceID_t) (FUJI_DEVICEID::PRINTER
-                                                + fnPrinters.get_port(0))); // P:
-
-    sioR = new modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
-
-    SYSTEM_BUS.addDevice(sioR, FUJI_DEVICEID::SERIAL); // R:
-
-    SYSTEM_BUS.addDevice(&sioV, FUJI_DEVICEID::VOICE); // P3:
-
-    SYSTEM_BUS.addDevice(&sioZ, FUJI_DEVICEID::CPM); // (ATR8000 CPM)
-
-    // Go setup SIO
-    SYSTEM_BUS.setup();
-#endif // BUILD_ATARI
-
-#ifdef BUILD_COCO
-    theFuji->setup();
-
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    drivewirePrinter::printer_type ptype = Config.get_printer_type(0);
-    if (ptype == drivewirePrinter::printer_type::PRINTER_INVALID)
-        ptype = drivewirePrinter::printer_type::PRINTER_FILE_TRIM;
-
-    Debug_printf("Creating a default printer using %s storage and type %d\r\n", ptrfs->typestring(), ptype);
-
-    drivewirePrinter *ptr = new drivewirePrinter(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-    SYSTEM_BUS.setPrinter(ptr);
-
-    SYSTEM_BUS.setup();
-#endif
-
-#ifdef BUILD_IEC
-
-    // Setup IEC Bus
-    SYSTEM_BUS.setup();
-
-    theFuji->setup();
-    //sioR = new iecModem(ptrfs, Config.get_modem_sniffer_enabled());
-
-#endif // BUILD_IEC
-
-#ifdef BUILD_LYNX
-    theFuji->setup();
-    SYSTEM_BUS.setup();
-#endif
-
-#ifdef BUILD_RS232
     theFuji->setup();
     SYSTEM_BUS.setup();
     SYSTEM_BUS.addDevice(theFuji, FUJI_DEVICEID::FUJINET);
@@ -430,129 +342,6 @@ void main_setup(int argc, char *argv[])
 
     rs232Modem *mdm = new rs232Modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
     SYSTEM_BUS.addDevice(mdm, FUJI_DEVICEID::SERIAL); // R:
-#endif
-
-#ifdef BUILD_RC2014
-    theFuji->setup();
-    SYSTEM_BUS.setup();
-
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    rc2014Printer::printer_type ptype = Config.get_printer_type(0);
-    if (ptype == rc2014Printer::printer_type::PRINTER_INVALID)
-        ptype = rc2014Printer::printer_type::PRINTER_FILE_TRIM;
-
-    Debug_printf("Creating a default printer using %s storage and type %d\r\n", ptrfs->typestring(), ptype);
-
-    rc2014Printer *ptr = new rc2014Printer(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-
-    SYSTEM_BUS.addDevice(ptr, (fujiDeviceID_t)(FUJI_DEVICEID::PRINTER + fnPrinters.get_port(0))); // P:
-
-    sioR = new rc2014Modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
-    SYSTEM_BUS.addDevice(sioR, FUJI_DEVICEID::SERIAL); // R:
-
-#endif
-
-#ifdef BUILD_H89
-    theFuji->setup();
-    SYSTEM_BUS.setup();
-
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    H89Printer::printer_type ptype = Config.get_printer_type(0);
-    if (ptype == H89Printer::printer_type::PRINTER_INVALID)
-        ptype = H89Printer::printer_type::PRINTER_FILE_TRIM;
-
-    Debug_printf("Creating a default printer using %s storage and type %d\r\n", ptrfs->typestring(), ptype);
-
-    H89Printer *ptr = new H89Printer(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-
-    // SYSTEM_BUS.addDevice(ptr, H89_DEVICEID_PRINTER + fnPrinters.get_port(0)); // P:
-
-    // H89R = new H89Modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
-    // SYSTEM_BUS.addDevice(H89R, H89_DEVICEID_MODEM); // R:
-
-#endif
-
-#ifdef BUILD_ADAM
-    theFuji->setup();
-    SYSTEM_BUS.setup();
-    fnSDFAT.create_path("/FujiNet");
-
-    Debug_printf("Adding virtual printer\r\n");
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    adamPrinter::printer_type printer = Config.get_printer_type(0);
-    adamPrinter *ptr = new adamPrinter(ptrfs, printer);
-    fnPrinters.set_entry(0, ptr, printer, 0);
-    SYSTEM_BUS.addDevice(ptr, FUJI_DEVICEID::PRINTER);
-    SYSTEM_BUS.setDeviceEnabled(FUJI_DEVICEID::PRINTER, Config.get_printer_enabled());
-    SYSTEM_BUS.addDevice(&platformClock, FUJI_DEVICEID::CLOCK); // APETime compatible, extended for additional return types
-
-#ifdef VIRTUAL_ADAM_DEVICES
-    Debug_printf("Physical Device Scanning...\r\n");
-    sioQ = new adamQueryDevice();
-
-#ifndef NO_VIRTUAL_KEYBOARD
-    exists = sioQ->adamDeviceExists(FUJI_DEVICEID::KEYBOARD);
-    if (!exists)
-    {
-        Debug_printf("Adding virtual keyboard\r\n");
-        sioK = new adamKeyboard();
-        SYSTEM_BUS.addDevice(sioK, FUJI_DEVICEID::KEYBOARD);
-    }
-    else
-        Debug_printf("Physical keyboard found\r\n");
-#endif // NO_VIRTUAL_KEYBOARD
-
-#endif // VIRTUAL_ADAM_DEVICES
-
-#endif // BUILD_ADAM
-
-#ifdef BUILD_APPLE
-
-    iwmModem *sioR;
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    sioR = new iwmModem(ptrfs, Config.get_modem_sniffer_enabled());
-    SYSTEM_BUS.addDevice(sioR, FUJI_DEVICEID::SERIAL);
-    iwmPrinter::printer_type ptype = Config.get_printer_type(0);
-    iwmPrinter *ptr = new iwmPrinter(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-    SYSTEM_BUS.addDevice(ptr, FUJI_DEVICEID::PRINTER);
-
-    theFuji->setup();
-    SYSTEM_BUS.setup(); // save device unit SP address somewhere and restore it after reboot?
-
-#endif /* BUILD_APPLE */
-
-#ifdef BUILD_MAC
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-
-    sioR = new macModem(ptrfs, Config.get_modem_sniffer_enabled());
-    SYSTEM_BUS.setup();
-    theFuji->setup();
-
-#endif // BUILD_MAC
-
-#ifdef BUILD_CX16
-    theFuji->setup();
-    SYSTEM_BUS.addDevice(theFuji, CX16_DEVICEID_FUJINET); // the FUJINET!
-
-    // Create a new printer object, setting its output depending on whether we have SD or not
-    FileSystem *ptrfs = fnSDFAT.running() ? (FileSystem *)&fnSDFAT : (FileSystem *)&fsFlash;
-    cx16Printer::printer_type ptype = Config.get_printer_type(0);
-    if (ptype == cx16Printer::printer_type::PRINTER_INVALID)
-        ptype = cx16Printer::printer_type::PRINTER_FILE_TRIM;
-
-    Debug_printf("Creating a default printer using %s storage and type %d\r\n", ptrfs->typestring(), ptype);
-
-    cx16Printer *ptr = new cx16Printer(ptrfs, ptype);
-    fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
-
-    SYSTEM_BUS.addDevice(ptr, CX16_DEVICEID_PRINTER + fnPrinters.get_port(0)); // P:
-
-    // Go setup SIO
-    SYSTEM_BUS.setup();
-#endif
 
     // After the bus is set up, since a cradle may share its port.
     if (Config.get_hotsync_enabled() && fnSDFAT.running())
@@ -593,13 +382,6 @@ void main_setup(int argc, char *argv[])
 #endif
 }
 
-#ifdef BUILD_S100
-
-// theFuji->setup();
-// SYSTEM_BUS.setup();
-
-#endif /* BUILD_S100*/
-
 // Main high-priority service loop
 void fn_service_loop(void *param)
 {
@@ -635,15 +417,6 @@ void fn_service_loop(void *param)
     if (!Config.get_general_config_enabled() && Config.get_config_filename().empty())
         theFuji->fujicore_mount_all_at_startup();
 
-#ifdef BUILD_ADAM
-    // All devices registered and disks mounted: hand the AdamNet bus to its own
-    // high-priority core-1 task so it services the one-wire bus continuously and
-    // can't be stalled by WiFi/scheduler latency mid-handshake (the desync that
-    // caused intermittent "Drive Error" under PIP *.*[V]). Must be after the mount
-    // above so the task never races device registration / direct-UART setup probes.
-    SYSTEM_BUS.start_bus_task();
-#endif
-
     // Main service loop
 #ifdef ESP_PLATFORM
     // We don't have any delays in this loop, so IDLE threads will be starved
@@ -666,20 +439,14 @@ void fn_service_loop(void *param)
         Debug_printv("Low Heap: %lu",esp_get_free_internal_heap_size());
   #endif
 #endif
-#if !(defined(BUILD_ADAM) && defined(ESP_PLATFORM))
         // ESP ADAM services the bus in its own core-1 task; every other build
         // (including ADAM PC) services it here from the main loop.
-#ifdef BUILD_RS232
         // A HotSync cradle may be holding the port for a window.
         if (!rs232_hotsync_port.wanted && rs232_hotsync_port.in_use.try_lock())
         {
             SYSTEM_BUS.service();
             rs232_hotsync_port.in_use.unlock();
         }
-#else
-        SYSTEM_BUS.service();
-#endif
-#endif
 
 #if defined(ESP_PLATFORM) && defined(DEBUG)
         // Internal DRAM every 10s: flat is a fixed cost, falling is a leak. Flat free
@@ -719,7 +486,6 @@ void fn_service_loop(void *param)
     }
 }
 
-
 #ifdef ESP_PLATFORM
 /*
  * This is the start/entry point for an ESP-IDF program (must use "C" linkage)
@@ -735,11 +501,7 @@ extern "C"
 // Create a new high-priority task to handle the main loop
 // This is assigned to CPU1; the WiFi task ends up on CPU0
 #define MAIN_STACKSIZE 32768
-#ifdef BUILD_ADAM
 #define MAIN_PRIORITY 17
-#else
-#define MAIN_PRIORITY 17
-#endif
 #define MAIN_CPUAFFINITY 1
 
         // Without this task there is no bus service at all; app_main deletes itself

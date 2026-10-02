@@ -111,14 +111,8 @@ struct u32be_t {
 static_assert(sizeof(u32be_t) == 4, "u32be_t must be 4 bytes");
 
 // unsigned types in "native ending"
-#ifdef BUILD_COCO
-using u16ne_t = u16be_t;
-using u24ne_t = u24be_t;
-using u32ne_t = u32be_t;
-#else
 using u16ne_t = u16le_t;
 using u24ne_t = u24le_t;
 using u32ne_t = u32le_t;
-#endif /* BUILD_COCO */
 
 #endif

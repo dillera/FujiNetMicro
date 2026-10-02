@@ -1,8 +1,7 @@
 # Contributing to FujiNet firmware
 
-FujiNet firmware is one C++20 codebase that builds network-adapter firmware for many retro computers
-(Atari, Apple II, Coleco ADAM, CoCo, Commodore IEC, Lynx, RS232 and more) as an ESP32/ESP32-S3
-ESP-IDF project driven by PlatformIO, plus a host "FujiNet-PC" binary built with CMake.
+FujiNetMicro is a C++20 codebase, hard-forked from FujiNet firmware, that builds network-adapter
+firmware for the RS-232 FujiNet boards as an ESP32/ESP32-S3 ESP-IDF project driven by PlatformIO, plus a host "FujiNet-PC" binary built with CMake.
 
 This is the working reference for anyone changing the code — new contributors, regulars, and AI
 coding assistants alike. The rules apply repo-wide unless a section names a narrower path. Detailed
@@ -36,7 +35,6 @@ make uploadfs     # == ./build.sh -f    (LittleFS/webUI image)
 make zip          # == ./build.sh -z
 make clean        # == ./build.sh -c
 make all          # == ./build.sh -a    (every board)
-make pico-de-coco # builds pico/coco separately
 ```
 
 Every `build.sh` run regenerates `platformio-generated.ini` by merging
@@ -44,12 +42,12 @@ Every `build.sh` run regenerates `platformio-generated.ini` by merging
 `platformio.local.ini`, then calls `pio`.
 
 ```sh
-./build.sh -y -s fujinet-atari-v1   # once per checkout: writes platformio.local.ini
+./build.sh -y -s fujinet-rs232-s3   # once per checkout: writes platformio.local.ini
 ./build.sh -b                       # build
 ./build.sh -cb                      # clean + build
 ./build.sh -cbum                    # clean, build, upload firmware, monitor
 ./build.sh -S                       # list every supported board name
-./build.sh -a                       # build all 29 boards; results in build-results.txt
+./build.sh -a                       # build all 4 boards; results in build-results.txt
 ```
 
 - `platformio.local.ini` is git-ignored and absent on a fresh clone. Without it every build exits
@@ -63,28 +61,27 @@ Every `build.sh` run regenerates `platformio-generated.ini` by merging
 ## Build and test on the host (FujiNet-PC)
 
 ```sh
-make coco-lwm             # == ./build.sh -p COCO -g : host debug build, colour codes stripped
-./build.sh -p ATARI       # configure, build, build dist/, then run ctest -V --progress
-./build.sh -p ATARI -g    # same, debug build
+make rs232-lwm            # == ./build.sh -p RS232 -g : host debug build, colour codes stripped
+./build.sh -p RS232       # configure, build, build dist/, then run ctest -V --progress
+./build.sh -p RS232 -g    # same, debug build
 (cd build/dist && ./run-fujinet)
 ```
 
-The `%-lwm` pattern rule uppercases the name and adds `-g`, so `make atari-lwm`, `make apple-lwm`,
-`make coco-lwm`, `make rs232-lwm`, `make lynx-lwm` and `make adam-lwm` are the six host builds.
+The `%-lwm` pattern rule uppercases the name and adds `-g`, so `make rs232-lwm` is the host build.
 
 This is the fastest real feedback available without hardware and the only path that runs tests.
-Valid `-p` targets are exactly `ATARI`, `APPLE`, `COCO`, `RS232`, `LYNX`, `ADAM`; anything else is a
+The only valid `-p` target is `RS232`; anything else is a
 CMake `FATAL_ERROR`. A failing test aborts the whole invocation. Switching targets triggers an
 automatic clean. Needs `cmake`, a C++20 compiler, MbedTLS 3.x, and `python_modules.txt`.
 
 ## Validate a change before proposing it
 
-CI for the firmware is **build-only**: `autobuild.yml` compiles 10 ESP32 targets and runs no tests,
+CI for the firmware is **build-only**: `autobuild.yml` compiles the 4 RS-232 ESP32 targets and runs no tests,
 and the ctest suite runs in `build-fujinet-pc.yml` only because `build.sh -p` invokes it. No
 workflow runs a linter or a formatter. So:
 
-1. `make atari-lwm` (or `./build.sh -p ATARI`) — compiles host code and runs every ctest,
-   including the policy check. Use the target matching the platform you changed.
+1. `make rs232-lwm` (or `./build.sh -p RS232`) — compiles host code and runs every ctest,
+   including the policy check.
 2. `./build.sh -b` for at least one board of each platform your change touches.
 3. `./build.sh -a` if you touched shared code under `lib/` or `src/main.cpp`.
 4. `git diff` and re-read the comments in it: each must still be true of the code as changed.
@@ -94,8 +91,8 @@ workflow runs a linter or a formatter. So:
 
 - The live suite is `tests/`, doctest-based, wired in only for the PC build. ctest names:
   `fujibuspacket_tests`, `calendar_tests`, `mail_tests`, `no_build_ifdefs_in_fujidevice`, and
-  `sio_dstats_tests` (built only when `FUJINET_TARGET=ATARI`).
-- Run them with `./build.sh -p ATARI`, or `ctest -V` from `build/` after a PC configure.
+  `nquery_output_mode_tests` (built only when `FUJINET_TARGET=RS232`).
+- Run them with `./build.sh -p RS232`, or `ctest -V` from `build/` after a PC configure.
 - To add one, add an `add_executable` + `add_test` pair to `tests/CMakeLists.txt`; keep the unit
   under test free of hardware and FujiNet globals so it links alone, as `fn_time.cpp` does.
 - `test/` (singular) is the stale PlatformIO/Unity on-hardware directory; nothing references it.
@@ -134,15 +131,13 @@ back, so raise the design first when yours does not fit.
 
 ## Platform conditional compilation
 
-- Platform macros are `BUILD_ADAM`, `BUILD_APPLE`, `BUILD_ATARI`, `BUILD_COCO`, `BUILD_CX16`,
-  `BUILD_H89`, `BUILD_IEC`, `BUILD_LYNX`, `BUILD_MAC`, `BUILD_RC2014`, `BUILD_RS232`, `BUILD_S100`
-  (plus `NEW_TARGET`, the skeleton port). Exactly one is defined per build. They come from
-  `build_platform` in `build-platforms/platformio-<board>.ini`, or from `fujinet_pc.cmake`.
+- The platform macro is `BUILD_RS232`, defined in every build by `build_platform` in
+  `build-platforms/platformio-<board>.ini`, or by `fujinet_pc.cmake`.
 - Firmware vs host is `#ifdef ESP_PLATFORM` / `#ifndef ESP_PLATFORM`. There is **no** `FUJINET_PC`
   macro; `FUJINET_TARGET` is a CMake variable, not a preprocessor symbol. Board/hardware variants
   are a separate `PINMAP_*` family, one per header in `include/pinmap/`.
-- `lib/bus/bus.h`, `lib/device/device.h` and `lib/device/disk.h` are the `#ifdef BUILD_*`
-  switchboards that select the bus, the device set and the `DISK_DEVICE` alias.
+- `lib/bus/bus.h`, `lib/device/device.h` and `lib/device/disk.h` select the RS-232 bus, the
+  device set and the `DISK_DEVICE` alias.
 
 ## Never hand-edit or commit these
 
@@ -249,8 +244,7 @@ walks the whole heap and is a temporary diagnostic only.
   sitting idle. Prefer `include/PSRAMAllocator.h` or `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for
   bulk buffers; reserve `MALLOC_CAP_INTERNAL`/`MALLOC_CAP_DMA` for buffers hardware requires.
 - Do not add allocation, logging, or calls into non-IRAM code on a bus ISR or hot path. Anything
-  reachable from one must be `IRAM_ATTR`; `lib/bus/iec/IECBusHandler.cpp` `#error`s if it is
-  undefined on ESP. Use `volatile` for ISR/task-shared state.
+  reachable from one must be `IRAM_ATTR`. Use `volatile` for ISR/task-shared state.
 - FreeRTOS stack sizes are hand-tuned literals per task (1024 to 32768). Do not change one without
   a measured reason; check the return value of new `xTaskCreate*` calls.
 - Prefer static or pooled storage over new allocation in bus and device paths, and check every
@@ -357,7 +351,7 @@ Write the short version instead, and leave a section out rather than filling it 
 Almost nothing here can be fully verified without a device, so a PR description that is vague about
 testing costs a reviewer real time. Say plainly what you did and did not do: which targets you
 built and which you did not, whether you flashed and ran it on hardware and on which machine, and
-whether any test covers the change. "Builds for ATARI and COCO, not flashed, no test coverage" is a
+whether any test covers the change. "Builds for fujinet-rs232-s3, not flashed, no test coverage" is a
 perfectly good answer and far more useful than silence.
 
 ## Where to look

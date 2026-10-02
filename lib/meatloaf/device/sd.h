@@ -18,7 +18,6 @@
 
 #define _filesystem fnSDFAT
 
-
 /********************************************************
  * MFileSystem
  ********************************************************/
@@ -43,7 +42,6 @@ private:
 public:
     SDFileSystem(): MFileSystem("sd") {};
 };
-
 
 #endif // MEATLOAF_DEVICE_SD
 #endif // TEST_NATIVE

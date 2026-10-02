@@ -9,73 +9,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 
-if(FUJINET_TARGET STREQUAL "ATARI")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_ATARI)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-pc-atari)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS SIO)
-elseif(FUJINET_TARGET STREQUAL "APPLE")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_APPLE)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-pc-apple)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS IWM)
-elseif(FUJINET_TARGET STREQUAL "COCO")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_COCO)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-pc-coco)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS DRIVEWIRE)
-elseif(FUJINET_TARGET STREQUAL "RS232")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_RS232)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-pc-rs232)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS RS232)
-elseif(FUJINET_TARGET STREQUAL "LYNX")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_LYNX)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-lynx-devkitc)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS LYNX)
-elseif(FUJINET_TARGET STREQUAL "ADAM")
-    # fujinet.build_platform
-    set(FUJINET_BUILD_PLATFORM BUILD_ADAM)
-    # fujinet.build_board (used by build_webui.py)
-    set(FUJINET_BUILD_BOARD fujinet-pc-adam)
-    # fujinet.build_bus
-    set(FUJINET_BUILD_BUS ADAMNET)
-else()
-    message(FATAL_ERROR "Invalid target: '${FUJINET_TARGET}'. Please choose from 'RS232', 'ATARI', 'APPLE', 'COCO', 'LYNX', or 'ADAM'.")
+if(NOT FUJINET_TARGET STREQUAL "RS232")
+    message(FATAL_ERROR "Invalid target: '${FUJINET_TARGET}'. FujiNetMicro only builds 'RS232'.")
 endif()
 
-if(FUJINET_TARGET STREQUAL "APPLE")
-    ######################## SLIP PROTOCOL PROCESSING
-    set(SLIP_PROTOCOL "NET" CACHE STRING "Select the protocol type (NET or COM)")
-
-    set_property(CACHE SLIP_PROTOCOL PROPERTY STRINGS "NET" "COM")
-
-    if(NOT SLIP_PROTOCOL STREQUAL "NET" AND NOT SLIP_PROTOCOL STREQUAL "COM")
-      message(FATAL_ERROR "Invalid value for SLIP_PROTOCOL: ${SLIP_PROTOCOL}. Please choose either NET or COM.")
-    endif()
-
-    # convert to values for C++ code to use as macros
-    if(SLIP_PROTOCOL STREQUAL "NET")
-        add_compile_definitions(SLIP_PROTOCOL_NET=1)
-    elseif(SLIP_PROTOCOL STREQUAL "COM")
-        add_compile_definitions(SLIP_PROTOCOL_COM=1)
-        set(USE_LIBSERIAL TRUE)
-    endif()
-
-    message(STATUS "SLIP_PROTOCOL is ${SLIP_PROTOCOL}")
-    ################################################
-endif()
+# fujinet.build_platform
+set(FUJINET_BUILD_PLATFORM BUILD_RS232)
+# fujinet.build_board (used by build_webui.py)
+set(FUJINET_BUILD_BOARD fujinet-pc-rs232)
+# fujinet.build_bus
+set(FUJINET_BUILD_BUS RS232)
 
 find_package(PkgConfig)
 
@@ -111,7 +54,7 @@ set(BUILD_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
 
 # -DDBUG2 to enable monitor messages for a release build
 # -DSKIP_SERVER_CERT_VERIFY does not work with MbedTLS
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DDEV_RELAY_SLIP -DFLASH_SPIFFS -DDBUG2 -DDEBUG_NETSTREAM")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DFLASH_SPIFFS -DDBUG2 -DDEBUG_NETSTREAM")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DVERBOSE_HTTP -D__PC_BUILD_DEBUG__")
 
 # mongoose.c some compile options: -DMG_ENABLE_LINES=1 -DMG_ENABLE_DIRECTORY_LISTING=1 -DMG_ENABLE_SSI=1
@@ -119,7 +62,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DVERBOSE_HTTP -D__PC_BUILD_
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DMG_TLS=2 -DMG_ENABLE_LOG=0")
 
 # use MbedTLS (MG_TLS=1)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DMG_TLS=1 -DMG_ENABLE_LOG=0 -DDEV_RELAY_SLIP")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DMG_TLS=1 -DMG_ENABLE_LOG=0")
 # MG_TLS needed by mgHttpClient
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMG_TLS=1")
 # additional debug when investigating TLS issue
@@ -127,7 +70,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMG_TLS=1")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMG_ENABLE_LOG=1 -DMBEDTLS_X509_CRT_PARSE_C=1 -DMBEDTLS_DEBUG_C=1")
 
 # alternatively, to use mongoose build-in TLS (MG_TLS=0)
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DMG_TLS=3 -DMG_ENABLE_LOG=0 -DDEV_RELAY_SLIP")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DMG_TLS=3 -DMG_ENABLE_LOG=0")
 
 # INCLUDE (CheckIncludeFiles)
 # CHECK_INCLUDE_FILES (bsd/string.h HAVE_BSD_STRING_H)
@@ -150,7 +93,6 @@ set(INCLUDE_DIRS include
     lib/fuji lib/bus lib/device lib/media
     lib/device/fujiDevice lib/device/fujiClock lib/device/NDevice
     lib/encrypt lib/base64
-    lib/devrelay/commands lib/devrelay/service lib/devrelay/slip lib/devrelay/types
     lib/encoding
     components_pc/mongoose
     components_pc/miniaudio
@@ -325,7 +267,6 @@ set(SOURCES src/main.cpp
     lib/device/disk.h
     lib/device/printer.h
     lib/device/modem.h
-    lib/device/cassette.h
     lib/device/fujiDevice/fujiDevice.h lib/device/fujiDevice/fujiDevice.cpp
     lib/device/fujiDevice/FujiDeviceMixin.h
     lib/device/fujiDevice/Base64Mixin.h lib/device/fujiDevice/Base64Mixin.cpp
@@ -337,7 +278,6 @@ set(SOURCES src/main.cpp
     lib/device/NDevice/JSONParser.h lib/device/NDevice/JSONParser.cpp
     lib/device/NDevice/HTMLParser.h lib/device/NDevice/HTMLParser.cpp
     lib/device/NDevice/XMLParser.h lib/device/NDevice/XMLParser.cpp
-    lib/device/netstream.h
     lib/device/siocpm.h
     lib/modem-sniffer/modem-sniffer.h lib/modem-sniffer/modem-sniffer.cpp
     lib/media/media.h
@@ -352,33 +292,6 @@ set(SOURCES src/main.cpp
     lib/compat/compat_gettimeofday.h lib/compat/compat_gettimeofday.c
 )
 
-if(FUJINET_TARGET STREQUAL "ATARI")
-    list(APPEND SOURCES
-
-    lib/bus/sio/sio.h lib/bus/sio/sio.cpp
-    lib/bus/sio/FujiSIOPacket.h lib/bus/sio/FujiSIOPacket.cpp
-    lib/bus/sio/NetSIO.h lib/bus/sio/NetSIO.cpp
-    lib/media/atari/diskType.h lib/media/atari/diskType.cpp
-    lib/media/atari/diskTypeAtr.h lib/media/atari/diskTypeAtr.cpp
-    lib/media/atari/diskTypeAtx.h lib/media/atari/diskTypeAtx.cpp
-    lib/media/atari/diskTypeXex.h lib/media/atari/diskTypeXex.cpp
-
-    lib/device/sio/disk.h lib/device/sio/disk.cpp
-    lib/device/sio/printer.h lib/device/sio/printer.cpp
-    lib/device/sio/printerlist.h lib/device/sio/printerlist.cpp
-    lib/device/sio/cassette.h lib/device/sio/cassette.cpp
-    lib/device/sio/sioFuji.h lib/device/sio/sioFuji.cpp
-    lib/device/sio/sioNetwork.h lib/device/sio/sioNetwork.cpp
-    lib/device/sio/netstream.h lib/device/sio/netstream.cpp
-    lib/device/sio/voice.h lib/device/sio/voice.cpp
-    lib/device/sio/sioClock.h lib/device/sio/sioClock.cpp
-    lib/device/sio/siocpm.h lib/device/sio/siocpm.cpp
-    lib/device/sio/pclink.h lib/device/sio/pclink.cpp
-    lib/device/sio/modem.h lib/device/sio/modem.cpp
-
-    )
-endif()
-
 # support for SAM audio playback
 list(APPEND SOURCES
     lib/sam/ReciterTabs.h
@@ -391,127 +304,6 @@ list(APPEND SOURCES
     lib/sam/samlib.h lib/sam/samlib.cpp
 )
 
-if(FUJINET_TARGET STREQUAL "APPLE")
-    list(APPEND SOURCES
-
-    lib/bus/iwm/iwm_slip.h lib/utils/std_extensions.hpp lib/bus/iwm/iwm_slip.cpp
-    lib/bus/iwm/connector.h
-    lib/bus/iwm/iwm.h lib/bus/iwm/iwm.cpp
-    lib/bus/iwm/FujiIWMPacket.h lib/bus/iwm/FujiIWMPacket.cpp
-    lib/bus/iwm/IWMBusIDMap.h lib/bus/iwm/IWMBusIDMap.cpp
-
-    lib/devrelay/util.h lib/devrelay/util.cpp
-    lib/devrelay/types/Request.h lib/devrelay/types/Request.cpp
-    lib/devrelay/types/Response.h lib/devrelay/types/Response.cpp
-    lib/devrelay/service/Listener.h lib/devrelay/service/Listener.cpp
-    lib/devrelay/service/Connection.h lib/devrelay/service/Connection.cpp
-    lib/devrelay/service/Requestor.h lib/devrelay/service/Requestor.cpp
-    lib/devrelay/slip/SLIP.h lib/devrelay/slip/SLIP.cpp
-    lib/devrelay/commands/Control.h lib/devrelay/commands/Control.cpp
-    lib/devrelay/commands/WriteBlock.h lib/devrelay/commands/WriteBlock.cpp
-    lib/devrelay/commands/Close.h lib/devrelay/commands/Close.cpp
-    lib/devrelay/commands/ReadBlock.h lib/devrelay/commands/ReadBlock.cpp
-    lib/devrelay/commands/Read.h lib/devrelay/commands/Read.cpp
-    lib/devrelay/commands/Open.h lib/devrelay/commands/Open.cpp
-    lib/devrelay/commands/Format.h lib/devrelay/commands/Format.cpp
-    lib/devrelay/commands/Write.h lib/devrelay/commands/Write.cpp
-    lib/devrelay/commands/Init.h lib/devrelay/commands/Init.cpp
-    lib/devrelay/commands/Status.h lib/devrelay/commands/Status.cpp
-
-    lib/media/apple/mediaType.h lib/media/apple/mediaType.cpp
-    lib/media/apple/mediaTypeDO.h lib/media/apple/mediaTypeDO.cpp
-    lib/media/apple/mediaTypeDSK.h lib/media/apple/mediaTypeDSK.cpp
-    lib/media/apple/mediaTypePO.h lib/media/apple/mediaTypePO.cpp
-    lib/media/apple/mediaTypeWOZ.h lib/media/apple/mediaTypeWOZ.cpp
-
-    lib/device/iwm/disk.h lib/device/iwm/disk.cpp
-    lib/device/iwm/disk2.h lib/device/iwm/disk2.cpp
-    lib/device/iwm/printer.h lib/device/iwm/printer.cpp
-    lib/device/iwm/printerlist.h lib/device/iwm/printerlist.cpp
-    lib/device/iwm/modem.h lib/device/iwm/modem.cpp
-    lib/device/iwm/iwmFuji.h lib/device/iwm/iwmFuji.cpp
-    lib/device/iwm/iwmNetwork.h lib/device/iwm/iwmNetwork.cpp
-    lib/device/iwm/iwmClock.h lib/device/iwm/iwmClock.cpp
-    lib/device/iwm/cpm.h lib/device/iwm/cpm.cpp
-
-    )
-
-    if(SLIP_PROTOCOL STREQUAL "NET")
-        list(APPEND SOURCES
-            lib/bus/iwm/connector_net.h lib/bus/iwm/connector_net.cpp
-            lib/devrelay/service/TCPConnection.h lib/devrelay/service/TCPConnection.cpp
-        )
-    elseif(SLIP_PROTOCOL STREQUAL "COM")
-        list(APPEND SOURCES
-            lib/bus/iwm/connector_com.h lib/bus/iwm/connector_com.cpp
-            lib/devrelay/service/COMConnection.h lib/devrelay/service/COMConnection.cpp
-        )
-    endif()
-
-endif()
-
-if(FUJINET_TARGET STREQUAL "COCO")
-    list(APPEND SOURCES
-
-    lib/bus/drivewire/drivewire.h lib/bus/drivewire/drivewire.cpp
-    lib/bus/drivewire/FujiDWPacket.h lib/bus/drivewire/FujiDWPacket.cpp
-    lib/hardware/BoIPChannel.h lib/hardware/BoIPChannel.cpp
-
-    lib/media/drivewire/mediaType.h lib/media/drivewire/mediaType.cpp
-    lib/media/drivewire/mediaTypeDSK.h lib/media/drivewire/mediaTypeDSK.cpp
-    lib/media/drivewire/mediaTypeMRM.h lib/media/drivewire/mediaTypeMRM.cpp
-    lib/media/drivewire/mediaTypeVDK.h lib/media/drivewire/mediaTypeVDK.cpp
-    lib/media/drivewire/mediaTypeROM.h lib/media/drivewire/mediaTypeROM.cpp
-    lib/media/drivewire/mediaTypeCASDSK.h lib/media/drivewire/mediaTypeCASDSK.cpp
-    lib/media/drivewire/casSource.h lib/media/drivewire/casSourceFile.h
-    lib/media/drivewire/casReader.h lib/media/drivewire/casReader.cpp
-    lib/media/drivewire/casIndex.h lib/media/drivewire/casIndex.cpp
-    lib/media/drivewire/decbLayout.h lib/media/drivewire/decbLayout.cpp
-
-    lib/device/drivewire/drivewireFuji.h lib/device/drivewire/drivewireFuji.cpp
-    lib/device/drivewire/disk.h lib/device/drivewire/disk.cpp
-    lib/device/drivewire/printer.h lib/device/drivewire/printer.cpp
-    lib/device/drivewire/printerlist.h lib/device/drivewire/printerlist.cpp
-    lib/device/drivewire/drivewireClock.h lib/device/drivewire/drivewireClock.cpp
-    lib/device/drivewire/drivewireNetwork.h lib/device/drivewire/drivewireNetwork.cpp
-
-    )
-endif()
-
-if(FUJINET_TARGET STREQUAL "ADAM")
-    # The adam bus/device/media sources include each other by bare filename.
-    # APPEND (after the base lib/device, lib/bus, lib/media) so shared names like
-    # disk.h / network.h / printer.h still resolve to the base platform-dispatch
-    # headers, while adam-only names (adamFuji.h, serial.h, ...) resolve here.
-    list(APPEND INCLUDE_DIRS lib/bus/adamnet lib/device/adamnet lib/media/adam)
-
-    list(APPEND SOURCES
-
-    lib/printer-emulator/coleco_printer.h lib/printer-emulator/coleco_printer.cpp
-
-    lib/bus/adamnet/adamnet.h lib/bus/adamnet/adamnet.cpp
-    lib/bus/adamnet/AdamNetPhase.h lib/bus/adamnet/AdamNetPhase.cpp
-    lib/bus/adamnet/FujiAdamPacket.h lib/bus/adamnet/FujiAdamPacket.cpp
-    lib/hardware/BoIPChannel.h lib/hardware/BoIPChannel.cpp
-
-    lib/media/adam/mediaType.h lib/media/adam/mediaType.cpp
-    lib/media/adam/mediaTypeDDP.h lib/media/adam/mediaTypeDDP.cpp
-    lib/media/adam/mediaTypeDSK.h lib/media/adam/mediaTypeDSK.cpp
-    lib/media/adam/mediaTypeROM.h lib/media/adam/mediaTypeROM.cpp
-
-    lib/device/adamnet/adamFuji.h lib/device/adamnet/adamFuji.cpp
-    lib/device/adamnet/adamClock.h lib/device/adamnet/adamClock.cpp
-    lib/device/adamnet/disk.h lib/device/adamnet/disk.cpp
-    lib/device/adamnet/keyboard.h lib/device/adamnet/keyboard.cpp
-    lib/device/adamnet/adamNetwork.h lib/device/adamnet/adamNetwork.cpp
-    lib/device/adamnet/printer.h lib/device/adamnet/printer.cpp
-    lib/device/adamnet/printerlist.h lib/device/adamnet/printerlist.cpp
-    lib/device/adamnet/serial.h lib/device/adamnet/serial.cpp
-
-    )
-endif()
-
-if(FUJINET_TARGET STREQUAL "RS232")
     list(APPEND SOURCES
 
     lib/bus/rs232/rs232.h lib/bus/rs232/rs232.cpp
@@ -533,35 +325,6 @@ if(FUJINET_TARGET STREQUAL "RS232")
     lib/device/rs232/rs232cpm.cpp lib/device/rs232/rs232cpm.h
 
     )
-endif()
-
-if(FUJINET_TARGET STREQUAL "LYNX")
-    # ComLynx headers use bare names, so add their directories after the
-    # platform-dispatch directories used by the common source list.
-    list(APPEND INCLUDE_DIRS lib/bus/comlynx lib/device/comlynx lib/media/lynx components/lz4/lib)
-
-    list(APPEND SOURCES
-
-    lib/bus/comlynx/comlynx.h lib/bus/comlynx/comlynx.cpp
-    lib/bus/comlynx/FujiLynxPacket.h lib/bus/comlynx/FujiLynxPacket.cpp
-    lib/hardware/BoIPChannel.h lib/hardware/BoIPChannel.cpp
-
-    lib/media/lynx/mediaType.h lib/media/lynx/mediaType.cpp
-    lib/media/lynx/mediaTypeROM.h lib/media/lynx/mediaTypeROM.cpp
-
-    lib/device/comlynx/disk.cpp lib/device/comlynx/disk.h
-    lib/device/comlynx/lynxFuji.cpp lib/device/comlynx/lynxFuji.h
-    lib/device/comlynx/netstream.cpp lib/device/comlynx/netstream.h
-    lib/device/comlynx/lynxNetwork.cpp lib/device/comlynx/lynxNetwork.h
-    lib/device/comlynx/printer.cpp lib/device/comlynx/printer.h
-    lib/device/comlynx/printerlist.cpp lib/device/comlynx/printerlist.h
-    lib/device/comlynx/redeye.cpp lib/device/comlynx/redeye.h
-
-    lib/printer-emulator/coleco_printer.h lib/printer-emulator/coleco_printer.cpp
-
-    components/lz4/lib/lz4.h components/lz4/lib/lz4.c
-    )
-endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(SOURCES ${SOURCES} lib/compat/win32_uname.c)

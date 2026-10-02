@@ -17,7 +17,6 @@
 
 #include <vector>
 
-
 using namespace std;
 
 #define ASCII_BELL 0x07
@@ -188,13 +187,6 @@ void netproto_translate_to_computer(std::string &buf, netProtoTranslation_t mode
         return;
     }
 
-#ifdef BUILD_ATARI
-    // ATASCII uses different codes for these controls; substitute them.
-    replace(buf.begin(), buf.end(), ASCII_BELL, ATASCII_BUZZER);
-    replace(buf.begin(), buf.end(), ASCII_BACKSPACE, ATASCII_DEL);
-    replace(buf.begin(), buf.end(), ASCII_TAB, ATASCII_TAB);
-#endif
-
     // Fold the network line ending into the computer's native EOL.
     util_replaceAll(buf, network_line_ending(mode), native_eol);
 }
@@ -214,13 +206,6 @@ void netproto_translate_from_computer(std::string &buf, netProtoTranslation_t mo
         buf = mstr::toUTF8(buf);
         return;
     }
-
-#ifdef BUILD_ATARI
-    // Substitute ATASCII control codes back to their ASCII equivalents.
-    util_replaceAll(buf, STR_ATASCII_BUZZER, STR_ASCII_BELL);
-    util_replaceAll(buf, STR_ATASCII_DEL, STR_ASCII_BACKSPACE);
-    util_replaceAll(buf, STR_ATASCII_TAB, STR_ASCII_TAB);
-#endif
 
     // Expand the computer's native EOL out to the network line ending.
     util_replaceAll(buf, native_eol, network_line_ending(mode));

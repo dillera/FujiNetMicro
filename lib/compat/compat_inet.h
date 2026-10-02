@@ -39,7 +39,6 @@ typedef uint32_t in_addr_t;
 #define IPADDR_BROADCAST    ((uint32_t)0xffffffffUL)
 #endif // !ESP_PLATFORM
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -76,6 +75,5 @@ bool compat_socket_set_nonblocking(int sockfd);
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif // COMPAT_INET_H

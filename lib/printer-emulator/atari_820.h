@@ -23,17 +23,7 @@ public:
     // void setDevice(sioPrinter *P) { my_sioP = P; };
     const char *modelname()  override 
     { 
-        #ifdef BUILD_ATARI
-            return sioPrinter::printer_model_str[sioPrinter::PRINTER_ATARI_820];
-        #elif BUILD_ADAM
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_ATARI_820];
-        #elif NEW_TARGET
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_ATARI_820];
-        #elif BUILD_RS232
             return rs232Printer::printer_model_str[rs232Printer::PRINTER_ATARI_820];
-        #else
-            return PRINTER_UNSUPPORTED;
-        #endif
     };
 };
 

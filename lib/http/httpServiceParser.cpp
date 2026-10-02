@@ -13,109 +13,10 @@
 #include "httpService.h"
 #include "appKeyManager.h"
 #include "fujiDevice.h"
-#ifdef BUILD_ATARI
-#include "sio/sioFuji.h"
-#endif /* BUILD_ATARI */
-#ifdef BUILD_MAC
-#include <esp_heap_caps.h>
-#include <cJSON.h>
-#endif /* BUILD_MAC */
 
 using namespace std;
 
 #define MAX_PRINTER_LIST_BUFFER (2048)
-
-#ifdef BUILD_MAC
-/* Mac mount list data: each slot's config next to what is actually loaded,
-   the hosts, and PSRAM. "</" is escaped since this lands in a <script> block. */
-string fnHttpServiceParser::mac_slots_json()
-{
-    cJSON *root = cJSON_CreateObject();
-    cJSON *slots = cJSON_AddArrayToObject(root, "slots");
-
-    for (int i = 0; i < MAX_DISK_DEVICES; i++)
-    {
-        cJSON *s = cJSON_CreateObject();
-        cJSON_AddNumberToObject(s, "n", i + 1);
-        cJSON_AddStringToObject(s, "role", i < MAC_DCD_SLOTS ? "hd20" : (i == MAC_FLOPPY_SLOT ? "floppy" : "none"));
-
-        int hs = Config.get_mount_host_slot(i);
-        if (hs != HOST_SLOT_INVALID)
-        {
-            cJSON_AddNumberToObject(s, "hs", hs);
-            cJSON_AddStringToObject(s, "host", Config.get_host_name(hs).c_str());
-            cJSON_AddStringToObject(s, "path", Config.get_mount_path(i).c_str());
-            cJSON_AddBoolToObject(s, "rw", Config.get_mount_mode(i) != fnConfig::mount_modes::MOUNTMODE_READ);
-        }
-
-        DISK_DEVICE *dd = theFuji->get_disk_dev(i);
-        if (dd != nullptr && dd->is_loaded())
-        {
-            cJSON_AddBoolToObject(s, "loaded", true);
-            cJSON_AddBoolToObject(s, "ro", dd->readonly);
-            cJSON_AddNumberToObject(s, "blocks", dd->size_in_blocks());
-
-            const MediaTypeDCD *dcd = dd->dcd_media();
-            if (dcd != nullptr)
-            {
-                static const char *kinds[] = {"", "volume", "drive", "dc42"};
-                static const char *fs[] = {"", "MFS", "HFS"};
-                static const char *boot[] = {"", "no-system", "unblessed", "blessed", "blessed-now"};
-                cJSON_AddStringToObject(s, "kind", kinds[static_cast<int>(dcd->image_kind)]);
-                cJSON_AddStringToObject(s, "fs", fs[static_cast<int>(dcd->fs_kind)]);
-                cJSON_AddStringToObject(s, "boot", boot[static_cast<int>(dcd->boot)]);
-                cJSON_AddStringToObject(s, "vol", dcd->volume_name);
-                cJSON_AddBoolToObject(s, "truncated", dcd->truncated);
-            }
-            else
-            {
-                cJSON_AddStringToObject(s, "kind", dd->is_sector_image() ? "sector" : "moof");
-                cJSON_AddNumberToObject(s, "sides", dd->num_sides());
-            }
-
-            if (dd->has_sit_source())
-            {
-                cJSON *a = cJSON_AddObjectToObject(s, "sit");
-                cJSON_AddStringToObject(a, "inner", dd->sit_inner_filename());
-                cJSON_AddStringToObject(a, "format", dd->sit_archive_kind());
-                cJSON_AddStringToObject(a, "method", dd->sit_method_name());
-                cJSON_AddBoolToObject(a, "ndif", dd->sit_was_ndif());
-                cJSON_AddNumberToObject(a, "bytes", dd->sit_image_len());
-            }
-        }
-        cJSON_AddItemToArray(slots, s);
-    }
-
-    cJSON *hosts = cJSON_AddArrayToObject(root, "hosts");
-    for (int h = 0; h < MAX_HOSTS; h++)
-    {
-        if (Config.get_host_type(h) == fnConfig::host_types::HOSTTYPE_INVALID || Config.get_host_name(h).empty())
-            continue;
-        cJSON *o = cJSON_CreateObject();
-        cJSON_AddNumberToObject(o, "hs", h);
-        cJSON_AddStringToObject(o, "name", Config.get_host_name(h).c_str());
-        cJSON_AddItemToArray(hosts, o);
-    }
-
-    cJSON_AddNumberToObject(root, "psram_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    cJSON_AddNumberToObject(root, "psram_total", heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
-
-    string out;
-    char *json = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    if (json == nullptr)
-        return "{}";
-    for (const char *p = json; *p; p++)
-    {
-        if (p[0] == '<' && p[1] == '/')
-            out += "<\\";
-        else
-            out += *p;
-    }
-    cJSON_free(json);
-    return out;
-}
-#endif /* BUILD_MAC */
 
 const string fnHttpServiceParser::substitute_tag(const string &tag)
 {
@@ -167,9 +68,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_MODEM_ENABLED,
         FN_MODEM_SNIFFER_ENABLED,
         FN_MODEM_CONNECT_DELAY_MS,
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
         FN_SERIAL_PORT_BAUD,
-#endif
 #ifndef ESP_PLATFORM
         FN_SERIAL_PORT,
         FN_SERIAL_COMMAND,
@@ -186,10 +85,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_DRIVE6HOST,
         FN_DRIVE7HOST,
         FN_DRIVE8HOST,
-#ifdef BUILD_APPLE
-        FN_DRIVE9HOST,
-        FN_DRIVE10HOST,
-#endif
         FN_DRIVE1MOUNT,
         FN_DRIVE2MOUNT,
         FN_DRIVE3MOUNT,
@@ -198,10 +93,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_DRIVE6MOUNT,
         FN_DRIVE7MOUNT,
         FN_DRIVE8MOUNT,
-#ifdef BUILD_APPLE
-        FN_DRIVE9MOUNT,
-        FN_DRIVE10MOUNT,
-#endif
         FN_HOST1,
         FN_HOST2,
         FN_HOST3,
@@ -218,10 +109,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_DRIVE6DEVICE,
         FN_DRIVE7DEVICE,
         FN_DRIVE8DEVICE,
-#ifdef BUILD_APPLE
-        FN_DRIVE9DEVICE,
-        FN_DRIVE10DEVICE,
-#endif
         FN_HOST1PREFIX,
         FN_HOST2PREFIX,
         FN_HOST3PREFIX,
@@ -243,9 +130,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_ONEDRIVE_CONNECTED,
         FN_PASSWORD_SET,
         FN_APPKEY_COUNT,
-#ifdef BUILD_MAC
-        FN_MAC_SLOTS,
-#endif
         FN_LASTTAG
     };
 
@@ -297,9 +181,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_MODEM_ENABLED",
         "FN_MODEM_SNIFFER_ENABLED",
         "FN_MODEM_CONNECT_DELAY_MS",
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
         "FN_SERIAL_PORT_BAUD",
-#endif
 #ifndef ESP_PLATFORM
         "FN_SERIAL_PORT",
         "FN_SERIAL_COMMAND",
@@ -316,10 +198,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_DRIVE6HOST",
         "FN_DRIVE7HOST",
         "FN_DRIVE8HOST",
-#ifdef BUILD_APPLE
-        "FN_DRIVE9HOST",
-        "FN_DRIVE10HOST",
-#endif
         "FN_DRIVE1MOUNT",
         "FN_DRIVE2MOUNT",
         "FN_DRIVE3MOUNT",
@@ -328,10 +206,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_DRIVE6MOUNT",
         "FN_DRIVE7MOUNT",
         "FN_DRIVE8MOUNT",
-#ifdef BUILD_APPLE
-        "FN_DRIVE9MOUNT",
-        "FN_DRIVE10MOUNT",
-#endif
         "FN_HOST1",
         "FN_HOST2",
         "FN_HOST3",
@@ -348,10 +222,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_DRIVE6DEVICE",
         "FN_DRIVE7DEVICE",
         "FN_DRIVE8DEVICE",
-#ifdef BUILD_APPLE
-        "FN_DRIVE9DEVICE",
-        "FN_DRIVE10DEVICE",
-#endif
         "FN_HOST1PREFIX",
         "FN_HOST2PREFIX",
         "FN_HOST3PREFIX",
@@ -373,9 +243,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_ONEDRIVE_CONNECTED",
         "FN_PASSWORD_SET",
         "FN_APPKEY_COUNT",
-#ifdef BUILD_MAC
-        "FN_MAC_SLOTS",
-#endif
     };
 
     stringstream resultstream;
@@ -466,14 +333,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_TIMEZONE:
         resultstream << Config.get_general_timezone();
         break;
-#ifdef BUILD_ATARI
-    case FN_APETIME_ENABLED:
-        resultstream << Config.get_apetime_enabled();
-        break;
-    case FN_PCLINK_ENABLED:
-        resultstream << Config.get_pclink_enabled();
-        break;
-#endif /* BUILD_ATARI */
 
     case FN_ROTATION_SOUNDS:
         resultstream << Config.get_general_rotation_sounds();
@@ -502,28 +361,9 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_BUSVOLTS:
         resultstream << ((float)fnSystem.get_sio_voltage()) / 1000.00 << "V";
         break;
-#ifdef BUILD_ATARI
-    case FN_SIO_HSINDEX:
-        resultstream << SYSTEM_BUS.getHighSpeedIndex();
-        break;
-#ifndef ESP_PLATFORM
-    case FN_SIO_HSTEXT:
-        hsioindex = SYSTEM_BUS.getHighSpeedIndex();
-        if (hsioindex == HSIO_INVALID_INDEX)
-            resultstream << "HSIO Disabled";
-        else
-            resultstream << hsioindex;
-        break;
-#endif
-    case FN_SIO_HSBAUD:
-        resultstream << SYSTEM_BUS.getHighSpeedBaud();
-        break;
-#endif /* BUILD_ATARI */
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
     case FN_SERIAL_PORT_BAUD:
         resultstream << Config.get_serial_baud();
         break;
-#endif /* BUILD_RS232 */
 #if !defined(ESP_PLATFORM)
     case FN_SERIAL_PORT:
         resultstream << Config.get_serial_port();
@@ -537,50 +377,14 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
 #endif
     case FN_PRINTER1_MODEL:
         {
-#ifdef BUILD_ADAM
-            adamPrinter *ap = fnPrinters.get_ptr(0);
-            if (ap != nullptr)
-                resultstream << fnPrinters.get_ptr(0)->getPrinterPtr()->modelname();
-            else
-                resultstream << "No Virtual Printer";
-#elif defined(BUILD_ATARI) || defined(BUILD_APPLE) || defined(BUILD_RS232)
             resultstream << fnPrinters.get_ptr(0)->getPrinterPtr()->modelname();
-#endif
         }
         break;
     case FN_PRINTER1_PORT:
         {
-#ifdef BUILD_ADAM
-            adamPrinter *ap = fnPrinters.get_ptr(0);
-            if (ap != nullptr)
-                resultstream << (fnPrinters.get_port(0) + 1);
-            else
-                resultstream << "";
-#elif defined(BUILD_ATARI) || defined(BUILD_APPLE) || defined(BUILD_RS232)
             resultstream << (fnPrinters.get_port(0) + 1);
-#endif
         }
         break;
-#ifdef BUILD_ATARI
-    case FN_PLAY_RECORD:
-        if (platformFuji.cassette()->get_buttons())
-            resultstream << "0 PLAY";
-        else
-            resultstream << "1 RECORD";
-        break;
-    case FN_PULLDOWN:
-        if (platformFuji.cassette()->has_pulldown())
-            resultstream << "1 Pulldown Resistor";
-        else
-            resultstream << "0 B Button Press";
-        break;
-    case FN_CASSETTE_ENABLED:
-        resultstream << Config.get_cassette_enabled();
-        break;
-    case FN_CONFIG_NG:
-        resultstream << Config.get_general_config_ng();
-        break;
-#endif /* BUILD_ATARI */
     case FN_CONFIG_ENABLED:
         resultstream << Config.get_general_config_enabled();
         break;
@@ -618,10 +422,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_DRIVE6HOST:
     case FN_DRIVE7HOST:
     case FN_DRIVE8HOST:
-#ifdef BUILD_APPLE
-    case FN_DRIVE9HOST:
-    case FN_DRIVE10HOST:
-#endif
         /* From what host is each disk is mounted on each Drive Slot? */
         drive_slot = tagid - FN_DRIVE1HOST;
         host_slot = Config.get_mount_host_slot(drive_slot);
@@ -639,28 +439,11 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_DRIVE6MOUNT:
     case FN_DRIVE7MOUNT:
     case FN_DRIVE8MOUNT:
-#ifdef BUILD_APPLE
-    case FN_DRIVE9MOUNT:
-    case FN_DRIVE10MOUNT:
-#endif
         /* What disk is mounted on each Drive Slot (and is it read-only or read-write)? */
         drive_slot = tagid - FN_DRIVE1MOUNT;
         host_slot = Config.get_mount_host_slot(drive_slot);
         if (host_slot != HOST_SLOT_INVALID) {
             resultstream << Config.get_mount_path(drive_slot);
-#ifdef BUILD_MAC
-            {
-                DISK_DEVICE *dd = theFuji->get_disk_dev(drive_slot);
-                if (dd != nullptr && dd->has_sit_source())
-                {
-                    resultstream << " -> " << dd->sit_inner_filename()
-                                 << " [" << dd->sit_archive_kind() << " / " << dd->sit_method_name()
-                                 << (dd->sit_was_ndif() ? ", NDIF" : "") << "] "
-                                 << dd->sit_image_len() << " bytes in PSRAM, "
-                                 << (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM) << " free";
-                }
-            }
-#endif
             resultstream << " (" << (Config.get_mount_mode(drive_slot) == fnConfig::mount_modes::MOUNTMODE_READ ? "R" : "W") << ")";
         } else {
             resultstream << "(Empty)";
@@ -690,10 +473,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_DRIVE6DEVICE:
     case FN_DRIVE7DEVICE:
     case FN_DRIVE8DEVICE:
-#ifdef BUILD_APPLE
-    case FN_DRIVE9DEVICE:
-    case FN_DRIVE10DEVICE:
-#endif
         /* What Dx: drive (if any rotation has occurred) does each Drive Slot currently map to? */
         drive_slot = tagid - FN_DRIVE1DEVICE;
         disk_id = (char) theFuji->get_disk_id(drive_slot);
@@ -770,11 +549,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_APPKEY_COUNT:
         resultstream << AppKeyManager::count();
         break;
-#ifdef BUILD_MAC
-    case FN_MAC_SLOTS:
-        resultstream << mac_slots_json();
-        break;
-#endif
     default:
         resultstream << tag;
         break;

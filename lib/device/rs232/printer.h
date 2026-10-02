@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 #ifndef ATARI_PRINTER_H
 #define ATARI_PRINTER_H
 
@@ -75,7 +74,6 @@ public:
         "HTML ATASCII printer"
     };
 
-
     rs232Printer(FileSystem *filesystem, printer_type printer_type = PRINTER_FILE_TRIM);
     ~rs232Printer();
 
@@ -87,11 +85,8 @@ public:
 
     printer_emu *getPrinterPtr() { return _pptr; };
 
-
 private:
     printer_type _ptype;
 };
 
-
 #endif // guard
-#endif

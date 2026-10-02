@@ -1412,7 +1412,6 @@ namespace cxxopts
       }
     }
 
-
     const std::string* m_long_name = nullptr;
     // Holding this pointer is safe, since OptionValue's only exist in key-value pairs,
     // where the key has the string we point to.

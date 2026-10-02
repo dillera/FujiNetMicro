@@ -13,7 +13,6 @@
 
 #include "fnFS.h"
 
-
 // using namespace std;
 
 #define SNIFFER_OUTPUT_FILE "/rs232dump"
@@ -79,7 +78,6 @@ private:
      * Is sniffer enabled?
      */
     bool enable = false;
-
 
     /**
      * indicate I/O direction for logging label.

@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 #include "rs232Fuji.h"
 #include "rs232Network.h"
 
@@ -409,4 +408,3 @@ ByteBuffer rs232Fuji::appkey_read()
     return result;
 }
 
-#endif /* BUILD_RS232 */

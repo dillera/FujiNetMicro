@@ -97,19 +97,7 @@ NetworkProtocolCalendar::NetworkProtocolCalendar(std::string *rx_buf, std::strin
     _count = CAL_DEFAULT_AGENDA;
 
     // Per-platform default human-readable line width, matching Mailbox.
-#if defined(BUILD_ATARI)
-    _defaultWidth = 38;
-#elif defined(BUILD_APPLE)
-    _defaultWidth = 40;
-#elif defined(BUILD_ADAM)
-    _defaultWidth = 32;
-#elif defined(BUILD_COCO)
-    _defaultWidth = 32;
-#elif defined(BUILD_RS232)
     _defaultWidth = 80;
-#else
-    _defaultWidth = 40;
-#endif
 }
 
 NetworkProtocolCalendar::~NetworkProtocolCalendar()

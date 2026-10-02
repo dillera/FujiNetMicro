@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 #ifndef RS232FUJI_H
 #define RS232FUJI_H
 
@@ -38,4 +37,3 @@ public:
 };
 
 #endif /* RS232FUJI_H */
-#endif /* BUILD_RS232 */

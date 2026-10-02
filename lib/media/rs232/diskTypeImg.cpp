@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232 // temporary
 
 #include "diskTypeImg.h"
 
@@ -11,7 +10,6 @@
 #include "fnSystem.h"
 
 #include "utils.h"
-
 
 // Returns byte offset of given sector number (1-based)
 uint32_t MediaTypeImg::_sector_to_offset(uint32_t sectorNum)
@@ -168,4 +166,3 @@ success_is_true MediaTypeImg::create(fnFile *f, uint16_t sectorSize, uint32_t nu
 {
     RETURN_ERROR_AS_FALSE();
 }
-#endif /* BUILD_ATARI */

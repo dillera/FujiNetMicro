@@ -219,20 +219,11 @@ void fnConfig::save()
     // SERIAL
     ss << LINETERM << "[Serial]" << LINETERM;
     ss << "port=" << _serial.port << LINETERM;
-#ifdef BUILD_COCO
-    ss << "baud=" << _serial.baud << LINETERM;
-#endif
-#ifdef BUILD_ATARI
-    ss << "command=" << std::string(_serial_command_pin_names[_serial.command]) << LINETERM;
-    ss << "proceed=" << std::string(_serial_proceed_pin_names[_serial.proceed]) << LINETERM;
-#endif
 #endif
 
-#ifdef BUILD_RS232
     // SERIAL
     ss << LINETERM << "[Serial]" << LINETERM;
     ss << "baud=" << _serial.baud << LINETERM;
-#endif
 
 #ifdef ESP_PLATFORM
     // Write the results out

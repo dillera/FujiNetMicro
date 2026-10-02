@@ -84,7 +84,6 @@ void fnConfig::store_serial_port(const char *port)
 }
 #endif /* ESP_PLATFORM */
 
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
 void fnConfig::store_serial_baud(int baud)
 {
     if (_serial.baud == baud)
@@ -93,7 +92,6 @@ void fnConfig::store_serial_baud(int baud)
     _serial.baud = baud;
     _dirty = true;
 }
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
 
 #ifndef ESP_PLATFORM
 // ATARI specific - maps PC UART signal to SIO Command signal
@@ -117,7 +115,6 @@ void fnConfig::store_serial_proceed(serial_proceed_pin proceed_pin)
 }
 #endif /* ! ESP_PLATFORM */
 
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
 void fnConfig::_read_section_serial(std::stringstream &ss)
 {
     std::string line;
@@ -149,7 +146,6 @@ void fnConfig::_read_section_serial(std::stringstream &ss)
         }
     }
 }
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
 
 #ifndef ESP_PLATFORM
 fnConfig::serial_command_pin fnConfig::serial_command_from_string(const char *str)

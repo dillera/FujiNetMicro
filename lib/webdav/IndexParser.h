@@ -77,7 +77,6 @@ public:
     std::vector<IndexEntry> entries;
 #endif
 
-
 protected:
     /**
      * @brief the current entry

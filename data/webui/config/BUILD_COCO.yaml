@@ -1,9 +1,0 @@
-extends: base
-components:
-  printer_settings: experimental
-  modem_settings: experimental
-  program_recorder: experimental
-  cpm_settings: experimental
-  emulator_settings: true
-tweaks:
-  platform: COCO

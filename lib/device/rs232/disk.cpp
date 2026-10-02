@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "disk.h"
 #include "fujiCommandID.h"
@@ -404,4 +403,3 @@ void rs232Disk::rs232_process(const FujiBusPacket &packet)
     SYSTEM_BUS.transaction_error();
 }
 
-#endif /* BUILD_RS232 */

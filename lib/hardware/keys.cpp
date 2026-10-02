@@ -33,24 +33,6 @@ static int mButtonPin[eKey::KEY_COUNT];
 
 void KeyManager::setup()
 {
-#ifdef PINMAP_ESP32S3
-
-    if (PIN_BUTTON_A != GPIO_NUM_NC)
-        fnSystem.set_pin_mode(PIN_BUTTON_A, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_UP);
-    else
-        _keys[eKey::BUTTON_A].disabled = true;
-
-    if (PIN_BUTTON_B != GPIO_NUM_NC)
-        fnSystem.set_pin_mode(PIN_BUTTON_B, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_UP);
-    else
-        _keys[eKey::BUTTON_B].disabled = true;
-
-    if (PIN_BUTTON_C != GPIO_NUM_NC)
-        fnSystem.set_pin_mode(PIN_BUTTON_C, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_UP);
-    else
-        _keys[eKey::BUTTON_C].disabled = true;
-
-#else /* PINMAP_ESP32S3 */
     mButtonPin[eKey::BUTTON_A] = PIN_BUTTON_A;
     mButtonPin[eKey::BUTTON_B] = PIN_BUTTON_B;
     mButtonPin[eKey::BUTTON_C] = fnSystem.get_safe_reset_gpio();
@@ -90,20 +72,11 @@ void KeyManager::setup()
     }
     else
     {
-#   ifdef BUILD_APPLE
-        // Rev00 has no pullup for Button C
-        if (fnSystem.get_hardware_ver() == 1)
-            fnSystem.set_pin_mode(PIN_BUTTON_C, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_UP);
-        else
-            fnSystem.set_pin_mode(PIN_BUTTON_C, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_NONE);
-#   else
         fnSystem.set_pin_mode(PIN_BUTTON_C, gpio_mode_t::GPIO_MODE_INPUT, SystemManager::pull_updown_t::PULL_NONE);
-#   endif
         Debug_printf("Button C (Safe Reset) Enabled on IO%d\r\n", mButtonPin[eKey::BUTTON_C]);
     }
 
 #   endif /* NO_BUTTONS */
-#endif /* PINMAP_ESP32S3 */
 
     // Start a new task to check the status of the buttons
     #define KEYS_STACKSIZE 4096
@@ -111,7 +84,6 @@ void KeyManager::setup()
     if (xTaskCreate(_keystate_task, "fnKeys", KEYS_STACKSIZE, this, KEYS_PRIORITY, nullptr) != pdPASS)
         Debug_printv("could not create fnKeys task, buttons disabled");
 }
-
 
 // Ignores the current key press
 void KeyManager::ignoreKeyPress(eKey key)
@@ -216,10 +188,8 @@ void KeyManager::_keystate_task(void *param)
 
     KeyManager *pKM = (KeyManager *)param;
 
-#if defined(BUILD_LYNX) || defined(BUILD_APPLE) || defined(BUILD_RS232) || defined(BUILD_MAC)
     // No button B onboard
     pKM->_keys[eKey::BUTTON_B].disabled = true;
-#endif
 
     while (true)
     {
@@ -259,10 +229,6 @@ void KeyManager::_keystate_task(void *param)
                 Config.save();
             }
 #endif //BLUETOOTH_SUPPORT
-#ifdef BUILD_MAC
-            Debug_println("ACTION: Mount all disks");
-            theFuji->fujicore_mount_all_success();
-#endif /* BUILD_MAC */
 
             break;
 
@@ -277,16 +243,6 @@ void KeyManager::_keystate_task(void *param)
             Debug_println("Sent RESET signal to Commodore");
 #endif
 
-#if defined(PINMAP_A2_REV0) || defined(PINMAP_FUJILOAF_REV0)
-            fnLedManager.blink(LED_BUS, 2); // blink to confirm a button press
-            // IEC.releaseLines();
-            Debug_printf("Heap: %lu\r\n",esp_get_free_internal_heap_size());
-            // Debug_printf("PsramSize: %u\r\n", fnSystem.get_psram_size());
-            // Debug_printf("himem phys: %u\r\n", esp_himem_get_phys_size());
-            // Debug_printf("himem free: %u\r\n", esp_himem_get_free_size());
-            // Debug_printf("himem reserved: %u\r\n", esp_himem_reserved_area_size());
-#endif // PINMAP_A2_REV0
-
 // Either toggle BT baud rate or do a disk image rotation on B_KEY SHORT PRESS
 #ifdef BLUETOOTH_SUPPORT
             if (fnBtManager.isActive())
@@ -297,21 +253,6 @@ void KeyManager::_keystate_task(void *param)
             else
 #endif
             {
-#ifdef BUILD_ATARI
-                Debug_println("ACTION: Send image_rotate message to SIO queue");
-                sio_message_t msg;
-                msg.message_id = SIOMSG_DISKSWAP;
-                if (SYSTEM_BUS.qSioMessages != nullptr)
-                    xQueueSend(SYSTEM_BUS.qSioMessages, &msg, 0);
-                fnLedManager.blink(BLUETOOTH_LED, 2); // blink to confirm a button press
-#endif /* BUILD_ATARI */
-#ifdef BUILD_ADAM
-                Debug_println("ACTION: Send image_rotate message to SIO queue");
-                adamnet_message_t msg;
-                msg.message_id = ADAMNETMSG_DISKSWAP;
-                if (SYSTEM_BUS.qAdamNetMessages != nullptr)
-                    xQueueSend(SYSTEM_BUS.qAdamNetMessages, &msg, 0);
-#endif /* BUILD_ADAM*/
             }
             break;
 
@@ -344,9 +285,6 @@ void KeyManager::_keystate_task(void *param)
 
         case eKeyStatus::SHORT_PRESS:
             Debug_println("BUTTON_B: SHORT PRESS");
-#ifdef BUILD_ATARI
-            Debug_printv("Free Internal Heap: %lu\nFree Total Heap: %lu",esp_get_free_internal_heap_size(),esp_get_free_heap_size());
-#endif /* BUILD_ATARI */
             break;
         case eKeyStatus::DOUBLE_TAP:
             Debug_println("BUTTON_B: DOUBLE-TAP");

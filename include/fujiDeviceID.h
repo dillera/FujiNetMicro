@@ -4,20 +4,6 @@
 #include <stdint.h>
 
 typedef enum class FUJI_DEVICEID : uint8_t {
-#if defined(BUILD_ADAM)
-  FUJINET      = 0x0F,
-
-  KEYBOARD     = 0x01,
-  PRINTER      = 0x02,
-  CLOCK        = 0x03,
-  DISK         = 0x04,
-  DISK2        = 0x05,
-  DISK3        = 0x06,
-  DISK4        = 0x07,
-  TAPE         = 0x08,
-  NETWORK      = 0x09,
-  NETWORK_LAST = 0x0E,
-#else
   FUJINET      = 0x70,
 
   DISK         = 0x31,
@@ -39,7 +25,6 @@ typedef enum class FUJI_DEVICEID : uint8_t {
   NETWORK_LAST = 0x78,
   MIDI         = 0x99,
   DBC          = 0xFF,
-#endif /* BUILD_ADAM */
 } fujiDeviceID_t;
 
 // Convenience methods to allow calculating disk & network IDs

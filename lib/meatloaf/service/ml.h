@@ -1,14 +1,12 @@
 // ML:// - Meatloaf Server Protocol
 // 
 
-
 #ifndef MEATLOAF_SCHEME_ML
 #define MEATLOAF_SCHEME_ML
 
 #include "network/http.h"
 
 #include "peoples_url_parser.h"
-
 
 /********************************************************
  * FS
@@ -45,6 +43,5 @@ class MLMFileSystem: public MFileSystem
 public:
     MLMFileSystem(): MFileSystem("meatloaf") {};
 };
-
 
 #endif // MEATLOAF_SCHEME_ML

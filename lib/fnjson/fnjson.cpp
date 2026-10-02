@@ -150,56 +150,6 @@ std::string FNJSON::processString(std::string in)
     if ((_queryParam & FN_QUERY_OUTPUT_MASK) == FN_QUERY_OUTPUT_ASCII)
         return fn_sanitize_ascii(in);
 
-#ifdef BUILD_IEC
-    // TODO: fix translations. There needs to be the ability to decide if we translate the TRANSMIT to internet and RECEIVE back to the host separately.
-    // Can't set _protocol->translation_mode to PETSCII to mark the incoming for changes, as that affects outgoing chars too. They need to be split
-    // if (_protocol->translation_mode == 4) {
-        // removing this, and doing it in the TALK phase instead
-        // in = mstr::toPETSCII2(in);
-    // }
-#endif
-
-#ifdef BUILD_ATARI
-
-    // SIO AUX bits 0+1 control the mapping
-    //   Bit 0=0 - don't touch the characters
-    //   Bit 0=1 - convert the characters when possible
-    //   Bit 1=0 - convert to generic ASCII/ATASCII (no font change needed)
-    //   Bit 1=1 - convert to ATASCII international charset (need to be switched on ATARI, i.e via POKE 756,204)
-
-    // SIO AUX2 Bit 1 set?
-    if (_queryParam & JSON_REMAP_CHARS)
-    {
-        // yes, map special characters
-        Debug_printf("S: [Mapping->ATARI]\r\n");
-
-        // SIO AUX2 Bit 2 set?
-        if (_queryParam & JSON_REMAP_ATASCII_INTERNATIONAL)
-        {
-            Debug_printf("Applying international charset mapping\r\n");
-            // yes, mapping to international charset
-            std::string mapFrom[] = {"á", "ù", "Ñ", "É", "ç", "ô", "ò", "ì", "£", "ï", "ü", "ä", "Ö", "ú", "ó", "ö", "Ü", "â", "û", "î", "é", "è", "ñ", "ê", "å", "à", "Å", "¡", "Ä", "ß"};
-            std::string mapTo[] = {"\x00", "\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07", "\x08", "\x09", "\x0a", "\x0b", "\x0c", "\x0d", "\x0e", "\x0f", "\x10", "\x11", "\x12", "\x13", "\x14", "\x15", "\x16", "\x17", "\x18", "\x19", "\x1a", "\x60", "\x7b", "ss"};
-            int elementCount = sizeof(mapFrom) / sizeof(mapFrom[0]);
-            for (int elementIndex = 0; elementIndex < elementCount; elementIndex++)
-                if (in.find(mapFrom[elementIndex]) != std::string::npos)
-                    in.replace(in.find(mapFrom[elementIndex]), std::string(mapFrom[elementIndex]).size(), mapTo[elementIndex]);
-        }
-        else
-        {
-            Debug_printf("Applying umlaut removal mapping\r\n");
-            // no, mapping to normal ASCI (workaround)
-            std::string mapFrom[] = {"Ä", "Ö", "Ü", "ä", "ö", "ü", "ß", "é", "è", "á", "à", "ó", "ò", "ú", "ù"};
-            std::string mapTo[] = {"Ae", "Oe", "Ue", "ae", "oe", "ue", "ss", "e", "e", "a", "a", "o", "o", "u", "u"};
-            int elementCount = sizeof(mapFrom) / sizeof(mapFrom[0]);
-            for (int elementIndex = 0; elementIndex < elementCount; elementIndex++)
-                if (in.find(mapFrom[elementIndex]) != std::string::npos)
-                    in.replace(in.find(mapFrom[elementIndex]), std::string(mapFrom[elementIndex]).size(), mapTo[elementIndex]);
-        }
-
-    }
-#endif
-
     return in;
 }
 
@@ -268,10 +218,6 @@ std::string FNJSON::getValue(cJSON *item)
     }
     else if (cJSON_IsObject(item))
     {
-        #ifdef BUILD_IEC
-            // Set line ending when returning multiple values
-            setLineEnding("\x0a");
-        #endif
 
         if (item->child == NULL)
         {

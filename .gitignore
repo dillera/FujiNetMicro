@@ -51,8 +51,6 @@ platformio.iniwow
 # for external library source code
 .external/
 
-data/webui/device_specific/BUILD_ATARI/fnconfig.ini
-
 # ignore any releases downloaded via fujinet_firware_uploader
 fujinet_releases/*
 
@@ -72,12 +70,6 @@ lib/hardware/fn_pico_blob_data.cpp
 
 # shallow clones of out-of-tree companion-MCU firmware repos (build_pico.py)
 pico/_external/
-
-# companion-MCU build dirs (pico/intellivision/firmware has its own
-# .gitignore; pico/coco and pico/mac do not, and .gitignore's `build/*` at
-# line 27 is root-anchored so it does not cover them)
-pico/*/build/
-pico/*/*/build/
 
 # scratch dir cmake drops in the cwd when it runs `cmake --system-information`
 __cmake_systeminformation/

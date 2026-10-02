@@ -18,19 +18,7 @@ protected:
 public:
     const char *modelname()  override 
     { 
-        #ifdef BUILD_ATARI
-            return sioPrinter::printer_model_str[sioPrinter::PRINTER_EPSON_PRINTSHOP];
-        #elif BUILD_CBM
-            return iecPrinter::printer_model_str[iecPrinter::PRINTER_EPSON_PRINTSHOP];
-        #elif BUILD_ADAM
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_EPSON_PRINTSHOP];
-        #elif NEW_TARGET
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_EPSON_PRINTSHOP];
-        #elif BUILD_RS232
             return rs232Printer::printer_model_str[rs232Printer::PRINTER_EPSON_PRINTSHOP];
-        #else
-            return PRINTER_UNSUPPORTED;
-        #endif
     }
 };
 

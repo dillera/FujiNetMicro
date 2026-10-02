@@ -38,5 +38,5 @@
 ctest names that must pass, or the on-device behaviour to look for. -->
 
 **Not tested:** <!-- Required. Which targets were not built, whether it was never flashed, whether
-any test covers this. "Builds for ATARI and COCO, not flashed, no test coverage" is a fine answer
+any test covers this. "Builds for fujinet-rs232-s3, not flashed, no test coverage" is a fine answer
 and far better than silence. -->

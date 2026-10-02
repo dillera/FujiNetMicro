@@ -97,11 +97,6 @@ jobs:
           #   sys: clang32
           #   default-shell: msys2 {0}
         fujinet_target:
-          - ADAM
-          - APPLE
-          - ATARI
-          - COCO
-          - LYNX
           - RS232
 
     # continue-on-error: true

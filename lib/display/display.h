@@ -47,8 +47,6 @@ typedef enum {
     WS2815,
 } led_strip_model_t;
 
-
-
 //static QueueHandle_t display_evt_queue = NULL;
     
 class Display

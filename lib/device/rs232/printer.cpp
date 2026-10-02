@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "printer.h"
 
@@ -255,4 +254,3 @@ void rs232Printer::rs232_process(const FujiBusPacket &packet)
     }
 }
 
-#endif /* BUILD_RS232 */

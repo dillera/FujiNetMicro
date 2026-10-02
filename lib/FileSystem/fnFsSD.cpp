@@ -77,7 +77,6 @@ bool _fssd_fsdir_sort_time_descend(fsdir_entry &left, fsdir_entry &right)
 
 typedef bool (*sort_fn_t)(fsdir_entry &left, fsdir_entry &right);
 
-
 #ifdef ESP_PLATFORM
 /*
   Converts the FatFs ftime and fdate to a POSIX time_t value
@@ -204,8 +203,6 @@ success_is_true FileSystemSDFAT::dir_open(const char * path, const char * patter
 		realpat[strlen(realpat)-1] = '\0';
 	}
 	thepat = filter_dirs ? realpat : (char *)pattern;
-
-	
 
     // Read all the directory entries and store them
     // We temporarily keep separate lists of files and directories so we can sort them separately
@@ -381,7 +378,6 @@ success_is_true FileSystemSDFAT::dir_seek(uint16_t pos)
     else
         RETURN_ERROR_AS_FALSE();
 }
-
 
 FILE * FileSystemSDFAT::file_open(const char* path, const char* mode)
 {
@@ -711,11 +707,7 @@ success_is_true FileSystemSDFAT::start()
         .sclk_io_num = PIN_SD_HOST_SCK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-#ifdef BUILD_APPLE
-        .max_transfer_sz = 27000
-#else
         .max_transfer_sz = 4000
-#endif
     };
 
     spi_bus_initialize(SDSPI_DEFAULT_HOST ,&bus_cfg, SDSPI_DEFAULT_DMA);

@@ -49,19 +49,7 @@ public:
     pngPrinter() { _paper_type = PNG;};
     const char *modelname()  override 
     { 
-        #ifdef BUILD_ATARI
-            return sioPrinter::printer_model_str[sioPrinter::PRINTER_PNG];
-        #elif BUILD_CBM
-            return iecPrinter::printer_model_str[iecPrinter::PRINTER_PNG];
-        #elif BUILD_ADAM
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_PNG];
-        #elif NEW_TARGET
-            return adamPrinter::printer_model_str[adamPrinter::PRINTER_PNG];
-        #elif BUILD_RS232
             return rs232Printer::printer_model_str[rs232Printer::PRINTER_PNG];
-        #else
-            return PRINTER_UNSUPPORTED;
-        #endif
     };
 
 };

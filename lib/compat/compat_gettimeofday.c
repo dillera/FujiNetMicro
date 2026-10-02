@@ -108,7 +108,6 @@ int compat_gettimeofday(struct timeval* tp, struct timezone* tzp)
 
 #endif
 
-
 // Test compat_gettimeofday
 // example:
 // test_gettimeofday(100000);

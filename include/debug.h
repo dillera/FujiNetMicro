@@ -31,7 +31,7 @@
     #define Serial fnDebugConsole
 #endif // !ENABLE_CONSOLE
 
-#if defined( PINMAP_RS232_S3 ) || defined( PINMAP_LYNX_S3 )
+#ifdef PINMAP_RS232_S3
     // ::printf, because inside an IOChannel subclass a bare printf is the
     // channel's own and would send the message out of the serial port.
     #define Debug_print(...) ::printf( __VA_ARGS__ )

@@ -21,29 +21,6 @@ void fnConfig::load()
 #ifdef ESP_PLATFORM
     Debug_println("fnConfig::load");
 
-#if defined(BUILD_ATARI) || defined(BUILD_ADAM)
-    // Don't erase config if there are no buttons or on devices without Button B
-    // Clear the config file if key is currently pressed
-    // This is the "Turn on while holding B button to reset Config" option.
-    if (fnKeyManager.keyCurrentlyPressed(BUTTON_B))
-    {
-        Debug_println("fnConfig deleting configuration file and skipping SD check");
-
-        // Tell the keymanager to ignore this keypress
-        fnKeyManager.ignoreKeyPress(BUTTON_B);
-
-        if (fsFlash.exists(CONFIG_FILENAME))
-            fsFlash.remove(CONFIG_FILENAME);
-
-        // full reset, so set us as not encrypting
-        _general.encrypt_passphrase = false;
-
-        _dirty = true; // We have a new config, so we treat it as needing to be saved
-        return;
-    }
-
-#endif /* BUILD_ATARI */
-
     /*
 Original behavior: read from FLASH first and only read from SD if nothing found on FLASH.
 
@@ -205,11 +182,9 @@ New behavior: copy from SD first if available, then read FLASH.
         case SECTION_ONEDRIVE:
             _read_section_onedrive(ss);
             break;
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
         case SECTION_SERIAL:
             _read_section_serial(ss);
             break;
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
         case SECTION_UNKNOWN:
             break;
         }

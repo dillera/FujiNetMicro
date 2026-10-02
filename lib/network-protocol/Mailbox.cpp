@@ -40,19 +40,7 @@ NetworkProtocolMailbox::NetworkProtocolMailbox(std::string *rx_buf, std::string 
 
     // Per-platform default human-readable line width (used when the width
     // parameter is 0). Fallback 40; MS-DOS maps to the RS232 platform.
-#if defined(BUILD_ATARI)
-    _defaultWidth = 38;
-#elif defined(BUILD_APPLE)
-    _defaultWidth = 40;
-#elif defined(BUILD_ADAM)
-    _defaultWidth = 32;
-#elif defined(BUILD_COCO)
-    _defaultWidth = 32;
-#elif defined(BUILD_RS232)
     _defaultWidth = 80;
-#else
-    _defaultWidth = 40;
-#endif
 }
 
 NetworkProtocolMailbox::~NetworkProtocolMailbox()

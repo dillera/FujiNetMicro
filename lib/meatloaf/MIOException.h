@@ -26,5 +26,4 @@ struct FileNotFoundException : public IOException {
    }
 };
 
-
 #endif // MEATLOAF_EXCEPTION

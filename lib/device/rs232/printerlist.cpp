@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "printerlist.h"
 
@@ -51,4 +50,3 @@ int printerlist::get_port(int index)
     return _printers[index].port;
 }
 
-#endif /* BUILD_RS232 */

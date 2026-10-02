@@ -32,7 +32,6 @@
 static esp_timer_handle_t s_flickerTimer = nullptr;
 #endif
 
-
 // Global LED manager object
 LedManager fnLedManager;
 
@@ -60,28 +59,13 @@ LedManager::LedManager()
 void LedManager::setup()
 {
 #ifdef ESP_PLATFORM
-#if defined(PINMAP_A2_REV0) || defined(PINMAP_FUJIAPPLE_IEC) || defined(PINMAP_MAC_REV0)
-    fnSystem.set_pin_mode(PIN_LED_BUS, gpio_mode_t::GPIO_MODE_OUTPUT);
-    fnSystem.digital_write(PIN_LED_BUS, DIGI_LOW);
-
-    fnSystem.set_pin_mode(PIN_LED_WIFI, gpio_mode_t::GPIO_MODE_OUTPUT);
-    fnSystem.digital_write(PIN_LED_WIFI, DIGI_HIGH);
-#elif defined(PINMAP_RS232_REV0)
+#ifdef PINMAP_RS232_REV0
     fnSystem.set_pin_mode(PIN_LED_BUS, gpio_mode_t::GPIO_MODE_INPUT_OUTPUT);
     fnSystem.digital_write(PIN_LED_BUS, DIGI_HIGH);
 
     fnSystem.set_pin_mode(PIN_LED_WIFI, gpio_mode_t::GPIO_MODE_INPUT_OUTPUT);
     fnSystem.digital_write(PIN_LED_WIFI, DIGI_HIGH);
-#elif defined(PINMAP_LYNX_S3)
-    fnSystem.set_pin_mode(PIN_LED_BUS, gpio_mode_t::GPIO_MODE_INPUT_OUTPUT);
-    fnSystem.digital_write(PIN_LED_BUS, DIGI_HIGH);
-
-    fnSystem.set_pin_mode(PIN_LED_BT, gpio_mode_t::GPIO_MODE_INPUT_OUTPUT);
-    fnSystem.digital_write(PIN_LED_BT, DIGI_HIGH);
-
-    fnSystem.set_pin_mode(PIN_LED_WIFI, gpio_mode_t::GPIO_MODE_INPUT_OUTPUT);
-    fnSystem.digital_write(PIN_LED_WIFI, DIGI_HIGH);
-#else // ! PINMAP_LYNX_S3
+#else // ! PINMAP_RS232_REV0
 #ifdef PIN_LED_BUS
     if (PIN_LED_BUS != GPIO_NUM_NC)
     {
@@ -105,7 +89,7 @@ void LedManager::setup()
         fnSystem.digital_write(PIN_LED_WIFI, DIGI_HIGH);
     }
 #endif // PIN_LED_BUS
-#endif // PINMAP_LYNX_S3
+#endif // PINMAP_RS232_REV0
 
     // If any LED is configured to flicker, start the periodic timer that drives it
     bool needFlicker = false;
@@ -155,16 +139,8 @@ void LedManager::applyState(eLed led, bool on)
     }
     else
     {
-#if defined(PINMAP_A2_REV0) || defined(PINMAP_FUJIAPPLE_IEC) || defined(PINMAP_MAC_REV0)
-        // FujiApple Rev 0 BUS LED has reverse logic
-        if (led == LED_BUS)
-            fnSystem.digital_write(mLedPin[led], (on ? DIGI_HIGH : DIGI_LOW));
-        else
-            fnSystem.digital_write(mLedPin[led], (on ? DIGI_LOW : DIGI_HIGH));
-#else
         if (mLedPin[led] != GPIO_NUM_NC)
             fnSystem.digital_write(mLedPin[led], (on ? DIGI_LOW : DIGI_HIGH));
-#endif
     }
 #endif // ESP_PLATFORM
 }

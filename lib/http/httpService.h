@@ -147,11 +147,6 @@ public:
     static esp_err_t post_handler_hosts(httpd_req_t *req);
     static esp_err_t get_handler_shorturl(httpd_req_t *req);
 
-#ifdef BUILD_ADAM
-    static esp_err_t get_handler_term(httpd_req_t *req);
-    static esp_err_t get_handler_kybd(httpd_req_t *req);
-#endif
-
     static esp_err_t post_handler_config(httpd_req_t *req);
 
     // Clipboard
@@ -172,12 +167,6 @@ public:
     static esp_err_t get_handler_files_download(httpd_req_t *req);
     static esp_err_t post_handler_files_action(httpd_req_t *req);
     static esp_err_t post_handler_files_upload(httpd_req_t *req);
-
-#ifdef BUILD_MAC
-    static esp_err_t get_handler_sitdownload(httpd_req_t *req);
-    static esp_err_t get_handler_mac_activity(httpd_req_t *req);
-    static esp_err_t get_handler_mac_slots(httpd_req_t *req);
-#endif
 
     // Google Drive OAuth2 relay-based endpoints
     static esp_err_t get_handler_gdrive_auth(httpd_req_t *req);

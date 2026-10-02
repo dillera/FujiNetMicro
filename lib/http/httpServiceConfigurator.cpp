@@ -10,22 +10,12 @@
 
 #include "printer.h"
 #include "fujiDevice.h"
-#ifdef BUILD_ATARI
-#include "sio/sioFuji.h"
-#endif /* BUILD_ATARI */
 
 #include "fnSystem.h"
 #include "fnConfig.h"
 #include "bus.h"
 
 #include "utils.h"
-
-
-#ifdef BUILD_APPLE
-#include "iwm/printerlist.h"
-#include "iwm/iwmFuji.h"
-#define PRINTER_CLASS iwmPrinter
-#endif /* BUILD_APPLE */
 
 bool udpactivate = false;
 
@@ -158,56 +148,11 @@ std::map<std::string, std::string> fnHttpServiceConfigurator::parse_postdata_dec
 /* Activate NetStream mode after all settings saved */
 void netstream_activate()
 {
-#ifdef BUILD_ATARI
-    SYSTEM_BUS.setStreamHostWithOptions(
-        Config.get_network_netstream_host().c_str(),
-        Config.get_network_netstream_port(),
-        (Config.get_network_netstream_mode() == 0) ? 0 : 1,
-        Config.get_network_netstream_register());
-#endif /* ATARI */
-#ifdef BUILD_LYNX
-    SYSTEM_BUS.setStreamHostWithOptions(
-        Config.get_network_netstream_host().c_str(),
-        Config.get_network_netstream_port(),
-        (Config.get_network_netstream_mode() == 0) ? 0 : 1,
-        Config.get_network_netstream_register(),
-        true);
-#endif /* LYNX */
 }
 
 void fnHttpServiceConfigurator::config_hsio(std::string hsioindex)
 {
-#ifdef BUILD_ATARI
-#ifdef ESP_PLATFORM
-    int index = -1;
-    char pc = hsioindex[0];
-    if (pc >= '0' && pc <= '9')
-        index = pc - '0';
-    else
-    {
-        Debug_printf("Bad HSIO index value: %s\n", hsioindex.c_str());
-        return;
-    }
-#else
-    Debug_printf("New HSIO index value: %s\n", hsioindex.c_str());
-
-    int index = atoi(hsioindex.c_str());
-
-    // get HSIO index and HSIO mode
-    if (index < -1 || (index > 10 && index != 16)) // accepted valued: -1 (HSIO disabled), 0 .. 10, 16
-    {
-        Debug_printf("Bad HSIO index value: %s\n", hsioindex.c_str());
-        return;
-    }
-#endif
-
-    SYSTEM_BUS.setHighSpeedIndex(index);
-    // Store our change in Config
-    Config.store_general_hsioindex(index);
-    Config.save();
-#endif /* BUILD_ATARI */
 }
-
 
 void fnHttpServiceConfigurator::config_timezone(std::string timezone)
 {
@@ -327,37 +272,14 @@ void fnHttpServiceConfigurator::config_cassette_enabled(std::string cassette_ena
 
 void fnHttpServiceConfigurator::config_cassette_play(std::string play_record)
 {
-#ifdef BUILD_ATARI
-    // call the cassette buttons function passing play_record.c_str()
-    // find cassette via thefuji object?
-    Debug_printf("New play/record button value: %s\n", play_record.c_str());
-    bool isRecord = util_string_value_is_true(play_record);
-    platformFuji.cassette()->set_buttons(isRecord);
-    Config.store_cassette_buttons(isRecord);
-
-    Config.save();
-#endif /* ATARI */
 }
 
 void fnHttpServiceConfigurator::config_cassette_resistor(std::string resistor)
 {
-#ifdef BUILD_ATARI
-    bool isPullDown = util_string_value_is_true(resistor);
-    platformFuji.cassette()->set_pulldown(isPullDown);
-    Config.store_cassette_pulldown(isPullDown);
-
-    Config.save();
-#endif /* ATARI */
 }
 
 void fnHttpServiceConfigurator::config_cassette_rewind()
 {
-#ifdef BUILD_ATARI
-    Debug_printf("Rewinding cassette.\n");
-    SYSTEM_BUS.getCassette()->rewind();
-
-    Config.save();
-#endif /* ATARI */
 }
 
 void fnHttpServiceConfigurator::config_netstream(std::string hostname)
@@ -369,12 +291,6 @@ void fnHttpServiceConfigurator::config_netstream(std::string hostname)
     if (hostname.compare("STOP") == 0)
     {
         Debug_println("NetStream Stop Request");
-#ifdef BUILD_ATARI
-        SYSTEM_BUS.setStreamHostWithOptions("STOP", port, 0, false);
-#endif /* ATARI */
-#ifdef BUILD_LYNX
-        SYSTEM_BUS.setStreamHost("STOP", port);
-#endif /* LYNX */
         Config.store_netstream_host("");
         Config.store_netstream_port(0);
         Config.store_netstream_mode(0);
@@ -496,11 +412,6 @@ void fnHttpServiceConfigurator::config_printer_port(std::string printernumber, s
     Config.store_printer_port(pn - 1, port);
     // Store our change in the printer list
     fnPrinters.set_port(0, port);
-#ifdef BUILD_ATARI
-    // Tell the SIO daisy chain to change the device ID for this printer
-    SYSTEM_BUS.assignFujiIDToDevice(fnPrinters.get_ptr(0),
-                                    (fujiDeviceID_t) (FUJI_DEVICEID::PRINTER + port));
-#endif
 
     Config.save();
 }
@@ -602,7 +513,7 @@ void fnHttpServiceConfigurator::config_serial(std::string port, std::string baud
         Config.save();
     }
 }
-#elif defined(BUILD_RS232)
+#else
     // RS232 Baud Rate
     void fnHttpServiceConfigurator::config_serial(std::string port, std::string baud, std::string command, std::string proceed)
     {
@@ -643,9 +554,6 @@ void fnHttpServiceConfigurator::config_boip(std::string enable_boip, std::string
 
     // Update settings (on ESP reboot is needed)
 #ifndef ESP_PLATFORM
-#if defined(BUILD_ATARI) || defined(BUILD_COCO)
-    SYSTEM_BUS.setHost(Config.get_boip_host().c_str(), Config.get_boip_port());
-#endif
 #endif
 
     if (!enable_boip.empty())
@@ -655,9 +563,6 @@ void fnHttpServiceConfigurator::config_boip(std::string enable_boip, std::string
 
     // Apply settings (on ESP reboot is needed)
 #ifndef ESP_PLATFORM
-#if defined(BUILD_ATARI) ||  defined(BUILD_COCO)
-    SYSTEM_BUS.selectSerialPort(Config.get_boip_enabled() == 0);
-#endif
 #endif
 
     // Save changes
@@ -695,13 +600,11 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
 
     free(decoded_buf);
 
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
     bool update_serial = false;
     std::string str_serial_port;
     std::string str_serial_baud;
     std::string str_serial_command;
     std::string str_serial_proceed;
-#endif
     bool update_boip = false;
     std::string str_boip_enable;
     std::string str_boip_host;
@@ -828,7 +731,6 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
         {
             config_ng(i->second);
         }
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
         else if (i->first.compare("serial_port") == 0)
         {
             str_serial_port = i->second;
@@ -849,7 +751,6 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
             str_serial_proceed = i->second;
             update_serial = true;
         }
-#endif
         else if (i->first.compare("boip_enable") == 0)
         {
             str_boip_enable = i->second;
@@ -872,12 +773,10 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
         netstream_activate();
     }
 
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
     if (update_serial)
     {
         config_serial(str_serial_port, str_serial_baud, str_serial_command, str_serial_proceed);
     }
-#endif
     if (update_boip)
     {
         config_boip(str_boip_enable, str_boip_host);

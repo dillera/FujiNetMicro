@@ -8,7 +8,7 @@ most damage when missed.
 
 - Build with `make build` or `./build.sh -b`; the target comes from `build_board` in the
   git-ignored `platformio.local.ini`. `-f` is upload-filesystem, not flash.
-- `make atari-lwm` (or `./build.sh -p ATARI`) runs the host build and the only automated tests
+- `make rs232-lwm` (or `./build.sh -p RS232`) runs the host build and the only automated tests
   there are. Use it before proposing a change.
 - Never hand-edit `platformio-generated.ini`, `platformio.ini`,
   `platformio-ini-files/platformio.common.ini`, `managed_components/` or `data/BUILD_*/`. They are

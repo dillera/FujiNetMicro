@@ -2,7 +2,7 @@
 # FUJINET_TARGET variable is used to enforce FujiNet-PC build for specified target
 
 if (NOT "$ENV{FUJINET_TARGET}" STREQUAL "")
-    set(FUJINET_TARGET "$ENV{FUJINET_TARGET}" CACHE INTERNAL "FUJINET_TARGET - Set to enforce FujiNet-PC build, set to one of 'ATARI' or 'APPLE', copied from environment variable")
+    set(FUJINET_TARGET "$ENV{FUJINET_TARGET}" CACHE INTERNAL "FUJINET_TARGET - Set to enforce FujiNet-PC build, set to 'RS232', copied from environment variable")
 endif()
 
 if (NOT FUJINET_TARGET)
@@ -20,16 +20,16 @@ if (NOT FUJINET_TARGET)
 else()
     #### FujiNet-PC ####
 
-    # To build, e.g. for ATARI target
+    # To build for the RS232 target
     #   cd build
-    #   cmake .. -DFUJINET_TARGET=ATARI -DCMAKE_BUILD_TYPE=Debug
+    #   cmake .. -DFUJINET_TARGET=RS232 -DCMAKE_BUILD_TYPE=Debug
     #   cmake --build . --target=dist
     # To run
     #   (cd dist && ./run-fujinet)
 
     # To build - alternative way, using environment variable
     #   cd build
-    #   export FUJINET_TARGET=ATARI
+    #   export FUJINET_TARGET=RS232
     #   cmake -S .. -B $FUJINET_TARGET -DCMAKE_BUILD_TYPE=Debug
     #   cmake --build $FUJINET_TARGET --target=dist
     # To run

@@ -8,7 +8,6 @@
 #include "fnFileTNFS.h"
 #include "../../include/debug.h"
 
-
 FileHandlerTNFS::FileHandlerTNFS(tnfsMountInfo *mountinfo, int handle)
 {
     Debug_println("new FileHandlerTNFS");
@@ -16,13 +15,11 @@ FileHandlerTNFS::FileHandlerTNFS(tnfsMountInfo *mountinfo, int handle)
     _handle = handle;
 };
 
-
 FileHandlerTNFS::~FileHandlerTNFS()
 {
     Debug_println("delete FileHandlerTNFS");
     if (_handle != -1) close(false);
 }
-
 
 int FileHandlerTNFS::close(bool destroy)
 {
@@ -37,7 +34,6 @@ int FileHandlerTNFS::close(bool destroy)
     if (destroy) delete this;
     return result;
 }
-
 
 int FileHandlerTNFS::seek(long int off, int whence)
 {
@@ -61,7 +57,6 @@ int FileHandlerTNFS::seek(long int off, int whence)
     return 0;
 }
 
-
 long int FileHandlerTNFS::tell()
 {
     Debug_println("FileHandlerTNFS::tell");
@@ -76,7 +71,6 @@ long int FileHandlerTNFS::tell()
     Debug_printf("returning %u\n", pos);
     return pos;
 }
-
 
 size_t FileHandlerTNFS::read(void *ptr, size_t size, size_t count)
 {
@@ -120,7 +114,6 @@ size_t FileHandlerTNFS::read(void *ptr, size_t size, size_t count)
     return bytes_requested == total_bytes_read ? count : total_bytes_read / size;
 }
 
-
 size_t FileHandlerTNFS::write(const void *ptr, size_t size, size_t count)
 {
     Debug_println("FileHandlerTNFS::write");
@@ -154,7 +147,6 @@ size_t FileHandlerTNFS::write(const void *ptr, size_t size, size_t count)
     return (size_t)(bytes_requested == total_bytes_written ? count : total_bytes_written / size);
 }
 
-
 void FileHandlerTNFS::invalidate_cache()
 {
     Debug_println("FileHandlerTNFS::invalidate_cache");
@@ -164,7 +156,6 @@ void FileHandlerTNFS::invalidate_cache()
         return;
     tnfs_lseek(_mountinfo, _handle, pFileInf->cached_pos, SEEK_SET, nullptr, true); // skip_cache
 }
-
 
 int FileHandlerTNFS::flush()
 {

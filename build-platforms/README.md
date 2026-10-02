@@ -13,18 +13,18 @@ Example file:
 
 ```ini
 [fujinet]
-build_platform = BUILD_ATARI
-build_bus      = SIO
-build_board    = fujinet-atari-v1
+build_platform = BUILD_RS232
+build_bus      = rs232
+build_board    = fujinet-rs232-rev0
 
-[env:fujinet-atari-v1]
+[env:fujinet-rs232-rev0]
 platform = espressif32@${fujinet.esp32_platform_version}
 platform_packages = ${fujinet.esp32_platform_packages}
-board = fujinet-v1
+board = fujinet-v1-8mb
 build_type = debug
 build_flags =
     ${env.build_flags}
-    -D PINMAP_ATARIV1
+    -D PINMAP_RS232_REV0
 ```
 
 There are always 2 sections needed, the first `[fujinet]` defines the 3 values required to uniquely define this board.

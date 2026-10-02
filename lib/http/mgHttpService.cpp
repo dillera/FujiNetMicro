@@ -28,9 +28,6 @@
 #include "fnTaskManager.h"
 #include "fnio.h"
 #include "utils.h"
-#ifdef BUILD_ATARI
-#include "sio/sioFuji.h"
-#endif /* BUILD_ATARI */
 
 #include "mongoose.h"
 #include <cJSON.h>
@@ -45,7 +42,6 @@
 #include "fnFsSD.h"
 
 #include "../../include/debug.h"
-
 
 using namespace std;
 
@@ -840,7 +836,6 @@ int fnHttpService::post_handler_files_upload(struct mg_connection *c, struct mg_
                     "Uploaded " + writer.summary() + ".");
     return 0;
 }
-
 
 /* Streams a host file to the client without blocking the mongoose event loop.
    The FileSystem belongs to the fujiHost and outlives the task, so only the
@@ -1899,7 +1894,6 @@ struct mg_mgr * fnHttpService::start_server(serverstate &srvstate)
     }
     return srvstate.hServer;
 }
-
 
 /* Set up and start the web server
  */

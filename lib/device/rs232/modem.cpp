@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "modem.h"
 
@@ -1682,4 +1681,3 @@ size_t rs232Modem::print(const std::string &str)
     return str.size();
 }
 
-#endif /* BUILD_RS232 */

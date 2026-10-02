@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "rs232.h"
 #include "FujiBusPacket.h"
@@ -405,4 +404,3 @@ fujiDeviceID_t virtualDevice::id()
     return SYSTEM_BUS.fujiIDForDevice(this);
 }
 
-#endif /* BUILD_RS232 */

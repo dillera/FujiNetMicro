@@ -21,5 +21,4 @@
 #define RGB_LED_ORDER           GRB
 #define PIN_LED_RGB_PWR         GPIO_NUM_NC
 
-
 #endif // PINMAP_DEFAULTS_H

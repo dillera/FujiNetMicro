@@ -19,10 +19,6 @@
 #include "httpService.h"
 #include "httpServiceBrowse.h"
 
-#ifdef BUILD_ATARI
-#include "sio/sioFuji.h"
-#endif /* BUILD_ATARI */
-
 #include "../../include/debug.h"
 
 using namespace std;

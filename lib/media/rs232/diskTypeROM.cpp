@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232 // temporary
 
 #include "diskTypeROM.h"
 
@@ -204,4 +203,3 @@ MediaTypeROM::~MediaTypeROM()
     close_memory_map();
 }
 
-#endif // BUILD_RS232

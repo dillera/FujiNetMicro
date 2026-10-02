@@ -8,7 +8,6 @@
 // global task manager object
 fnTaskManager taskMgr;
 
-
 fnTaskManager::fnTaskManager()
 {
     // Debug_println("fnTaskManager::fnTaskManager");

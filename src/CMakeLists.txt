@@ -5,19 +5,7 @@ set(INCLUDES
     ${CMAKE_SOURCE_DIR}/include/pinmap
 
     ${CMAKE_SOURCE_DIR}/lib/bus
-    ${CMAKE_SOURCE_DIR}/lib/bus/adamnet
-    ${CMAKE_SOURCE_DIR}/lib/bus/comlynx
-    ${CMAKE_SOURCE_DIR}/lib/bus/cx16_i2c
-    ${CMAKE_SOURCE_DIR}/lib/bus/drivewire
-    ${CMAKE_SOURCE_DIR}/lib/bus/h89
-    ${CMAKE_SOURCE_DIR}/lib/bus/iec
-    ${CMAKE_SOURCE_DIR}/lib/bus/iwm
-    ${CMAKE_SOURCE_DIR}/lib/bus/mac
-    ${CMAKE_SOURCE_DIR}/lib/bus/rc2014bus
-    ${CMAKE_SOURCE_DIR}/lib/bus/rc2014sio
     ${CMAKE_SOURCE_DIR}/lib/bus/rs232
-    ${CMAKE_SOURCE_DIR}/lib/bus/s100spi
-    ${CMAKE_SOURCE_DIR}/lib/bus/sio
 
     ${CMAKE_SOURCE_DIR}/lib/clipboard
     ${CMAKE_SOURCE_DIR}/lib/compat
@@ -31,27 +19,11 @@ set(INCLUDES
     ${CMAKE_SOURCE_DIR}/lib/console/ute
 
     ${CMAKE_SOURCE_DIR}/lib/device
-    ${CMAKE_SOURCE_DIR}/lib/device/adamnet
-    ${CMAKE_SOURCE_DIR}/lib/device/comlynx
-    ${CMAKE_SOURCE_DIR}/lib/device/cx16_i2c
-    ${CMAKE_SOURCE_DIR}/lib/device/drivewire
-    ${CMAKE_SOURCE_DIR}/lib/device/h89
-    ${CMAKE_SOURCE_DIR}/lib/device/iec
-    ${CMAKE_SOURCE_DIR}/lib/device/iwm
-    ${CMAKE_SOURCE_DIR}/lib/device/mac
-    ${CMAKE_SOURCE_DIR}/lib/device/rc2014
     ${CMAKE_SOURCE_DIR}/lib/device/rs232
-    ${CMAKE_SOURCE_DIR}/lib/device/s100spi
-    ${CMAKE_SOURCE_DIR}/lib/device/sio
     ${CMAKE_SOURCE_DIR}/lib/device/fujiDevice
     ${CMAKE_SOURCE_DIR}/lib/device/NDevice
     ${CMAKE_SOURCE_DIR}/lib/device/fujiClock
 
-    ${CMAKE_SOURCE_DIR}/lib/devrelay
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/commands
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/service
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/slip
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/types
 
     ${CMAKE_SOURCE_DIR}/lib/display
     ${CMAKE_SOURCE_DIR}/lib/encoding
@@ -75,7 +47,6 @@ set(INCLUDES
     ${CMAKE_SOURCE_DIR}/lib/qrcode
     ${CMAKE_SOURCE_DIR}/lib/runcpm
     ${CMAKE_SOURCE_DIR}/lib/sam
-    ${CMAKE_SOURCE_DIR}/lib/stuffit
     ${CMAKE_SOURCE_DIR}/lib/task
     ${CMAKE_SOURCE_DIR}/lib/tcpip
     ${CMAKE_SOURCE_DIR}/lib/telnet
@@ -89,20 +60,7 @@ FILE(GLOB_RECURSE SOURCES
     ${CMAKE_SOURCE_DIR}/src/*.cpp
 
     ${CMAKE_SOURCE_DIR}/lib/bus/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/adamnet/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/comlynx/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/cx16_i2c/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/drivewire/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/h89/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/iec/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/iwm/*.c
-    ${CMAKE_SOURCE_DIR}/lib/bus/iwm/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/mac/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/rc2014bus/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/rc2014sio/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/bus/rs232/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/s100spi/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/bus/sio/*.cpp
 
     ${CMAKE_SOURCE_DIR}/lib/clipboard/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/compat/*.c
@@ -115,24 +73,8 @@ FILE(GLOB_RECURSE SOURCES
     ${CMAKE_SOURCE_DIR}/lib/console/Helpers/*.cpp
 
     ${CMAKE_SOURCE_DIR}/lib/device/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/adamnet/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/comlynx/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/cx16_i2c/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/drivewire/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/h89/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/iec/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/iwm/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/mac/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/rc2014/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/device/rs232/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/s100spi/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/sio/*.cpp
 
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/commands/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/service/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/slip/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/devrelay/types/*.cpp
 
     ${CMAKE_SOURCE_DIR}/lib/display/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/encoding/*.cpp
@@ -159,7 +101,6 @@ FILE(GLOB_RECURSE SOURCES
     ${CMAKE_SOURCE_DIR}/lib/qrcode/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/sam/*.c
     ${CMAKE_SOURCE_DIR}/lib/sam/*.cpp
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/*.c
     ${CMAKE_SOURCE_DIR}/lib/task/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/tcpip/*.cpp
     ${CMAKE_SOURCE_DIR}/lib/telnet/*.c

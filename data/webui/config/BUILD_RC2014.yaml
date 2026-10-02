@@ -1,3 +1,0 @@
-extends: base
-components:
-  cpm_settings: true

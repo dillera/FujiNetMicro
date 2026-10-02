@@ -8,11 +8,7 @@
 #include "../../include/debug.h"
 
 #define MAX_HOST_SLOTS 8
-#ifdef BUILD_APPLE
-#define MAX_MOUNT_SLOTS 10
-#else
 #define MAX_MOUNT_SLOTS 8
-#endif
 #define MAX_PRINTER_SLOTS 4
 #define MAX_TAPE_SLOTS 1
 #define MAX_PB_SLOTS 16
@@ -32,30 +28,16 @@
 #endif /* ESP_PLATFORM */
 
 // Bus Over IP default port
-#if defined(BUILD_ATARI)
-// NetSIO default port for Atari
-#  define CONFIG_DEFAULT_BOIP_PORT 9997
-#elif defined(BUILD_COCO)
-// DriveWire default port for CoCo
-#  define CONFIG_DEFAULT_BOIP_PORT 65504
-#elif defined(BUILD_ADAM)
-// AdamNet-over-IP default port (matches ADAMEm's -fujinet default)
-#  define CONFIG_DEFAULT_BOIP_PORT 65216
-#else
 // Dev relay over network, used by Apple
 #  define CONFIG_DEFAULT_BOIP_PORT 1985
-#endif
 
-#ifdef BUILD_RS232
 #define CONFIG_DEFAULT_RS232_BAUD 115200
-#endif
 
 #define CONFIG_FILEBUFFSIZE 2048
 
 #define CONFIG_DEFAULT_SNTPSERVER "pool.ntp.org"
 
 #define PHONEBOOK_CHAR_WIDTH 12
-
 
 class fnConfig
 {
@@ -159,12 +141,10 @@ public:
     void store_serial_command(serial_command_pin command_pin);
     void store_serial_proceed(serial_proceed_pin proceed_pin);
 #endif /* ! ESP_PLATFORM */
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
     std::string get_serial_port() { return _serial.port; };
     int get_serial_baud() { return _serial.baud; };
     void store_serial_port(const char *port);
     void store_serial_baud(int baud);
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
 
     // WIFI
     bool have_wifi_info() { return _wifi.ssid.empty() == false; };
@@ -363,9 +343,7 @@ private:
     void _read_section_gdrive(std::stringstream &ss);
     void _read_section_s3(std::stringstream &ss);
     void _read_section_onedrive(std::stringstream &ss);
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
     void _read_section_serial(std::stringstream &ss);
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
 
     enum section_match
     {
@@ -388,9 +366,7 @@ private:
         SECTION_GOOGLEDRIVE,
         SECTION_S3,
         SECTION_ONEDRIVE,
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
         SECTION_SERIAL,
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
         SECTION_UNKNOWN
     };
     section_match _find_section_in_line(std::string &line, int &index);
@@ -494,11 +470,7 @@ private:
         bool fnconfig_spifs = true;
         bool status_wait_enabled = true;
         bool encrypt_passphrase = false;
-#ifdef BUILD_ADAM
-        bool printer_enabled = false; // Not by default.
-#else
         bool printer_enabled = true;
-#endif
 #ifndef ESP_PLATFORM
         std::string interface_url = WEB_SERVER_LISTEN_URL; // default URL to serve web interface
         std::string config_file_path = CONFIG_FILENAME; // default path to load/save config file (program CWD)
@@ -509,12 +481,7 @@ private:
     // "bus" over IP
     struct boip_info
     {
-#if defined(BUILD_ADAM) && !defined(ESP_PLATFORM)
-        // ADAM PC build defaults to ADAMEm over IP (no real AdamNet hardware).
-        bool boip_enabled = true;
-#else
         bool boip_enabled = false;
-#endif
 #ifdef ESP_PLATFORM
         // CoCo: DriveWire server (listen) -> listen on all IPs by default
         // Atari: NetSIO hub (connect to)  -> hub host/IP must be specified
@@ -547,21 +514,15 @@ private:
 #endif
     };
 
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
     struct serial_info
     {
         std::string port;
-#ifdef BUILD_RS232
         int baud = CONFIG_DEFAULT_RS232_BAUD;
-#else /* ! BUILD_RS232 */
-        int baud = 57600; // Used by CoCo, ignored by Atari
-#endif /* BUILD_RS232 */
 #ifndef ESP_PLATFORM
         serial_command_pin command = SERIAL_COMMAND_DSR; // Used by Atari, ignored by CoCo
         serial_proceed_pin proceed = SERIAL_PROCEED_DTR; // Used by Atari, ignored by CoCo
 #endif /* ESP_PLATFORM */
     };
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
 
     struct modem_info
     {
@@ -643,9 +604,7 @@ private:
     cassette_info _cassette;
     boip_info _boip;
     hotsync_info _hotsync;
-#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
     serial_info _serial;
-#endif /* BUILD_RS232 || ! ESP_PLATFORM */
     cpm_info _cpm;
     googledrive_info _gdrive;
     s3_info _s3;

@@ -1,7 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-#include "sio/sioNetwork.h"
+#include "rs232/rs232Network.h"
 
 #include "NParser.h"
 #include "XMLParser.h"
@@ -152,7 +152,7 @@ TEST_CASE("only the defined query flags are accepted")
 // ----------------------------------------------------------------------------
 // Link stubs. Only XMLParser, NParser and the fnxml/fntext libraries are
 // compiled into this target; everything the bus headers drag in behind them is
-// satisfied here, the same way sioNetwork-DSTATS-test.cpp does it.
+// satisfied here.
 // ----------------------------------------------------------------------------
 
 #ifdef ITS_A_UNIX_SYSTEM_I_KNOW_THIS
@@ -183,22 +183,12 @@ bool COMChannel::getDCD() { return false; }
 bool COMChannel::getRI() { return false; }
 #endif /* HELLO_IM_A_PC */
 
-NetSIO::NetSIO()
-    : _ip(0), _port(0), _baud(0), _baud_peer(0), _fd(-1),
-      _initialized(false), _command_asserted(false), _motor_asserted(false),
-      _sync_request_num(-1), _sync_ack_byte(0), _sync_write_size(0),
-      _errcount(0), _resume_time(0), _alive_time(0), _alive_request(0),
-      _credit(0)
-{
-}
-NetSIO::~NetSIO() {}
-void NetSIO::updateFIFO() {}
-size_t NetSIO::dataOut(const void *buffer, size_t length) { (void)buffer; (void)length; return 0; }
-void NetSIO::end() {}
-void NetSIO::flushOutput() {}
-void NetSIO::setBaudrate(uint32_t baud) { (void)baud; }
-
-void virtualDevice::sio_high_speed() {}
+BoIPChannel::BoIPChannel() {}
+BoIPChannel::~BoIPChannel() {}
+void BoIPChannel::updateFIFO() {}
+size_t BoIPChannel::dataOut(const void *buffer, size_t size) { (void)buffer; (void)size; return 0; }
+void BoIPChannel::end() {}
+void BoIPChannel::flushOutput() {}
 
 void systemBus::transaction_accept(transState_t expectMoreData) {}
 void systemBus::transaction_success() {}

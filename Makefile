@@ -24,8 +24,5 @@ zip:
 %-lwm:
 	$(call builder, -p $(shell echo $* | tr '[:lower:]' '[:upper:]') -g)
 
-pico-de-coco:
-	make -C pico/coco/build
-
 clean:
 	$(call builder, -c)

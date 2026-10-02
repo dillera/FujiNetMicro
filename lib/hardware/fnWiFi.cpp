@@ -22,7 +22,6 @@
 #include "httpService.h"
 #include "led.h"
 
-
 // Global object to manage WiFi
 WiFiManager fnWiFi;
 
@@ -332,10 +331,8 @@ uint8_t WiFiManager::scan_networks(uint8_t maxresults)
     scan_conf.scan_type = WIFI_SCAN_TYPE_ACTIVE;
     scan_conf.scan_time.active.min = 100; // ms; 100 is what Arduino-ESP uses
     scan_conf.scan_time.active.max = 300; // ms; 300 is what Arduino-ESP uses
-#ifndef BUILD_COCO
     scan_conf.channel_bitmap.ghz_2_channels = 0xFFFF; // all channels
     scan_conf.channel_bitmap.ghz_5_channels = 0xFFFFFFFF; // all channels
-#endif
 
     bool temporary_disconnect = false;
     uint16_t result = 0;
@@ -655,10 +652,6 @@ void WiFiManager::_wifi_event_handler(void *arg, esp_event_base_t event_base,
 // #ifdef BUILD_APPLE
 //             IWM.startup_hack();
 // #endif
-#ifdef BUILD_ATARI // temporary
-            if (Config.get_general_config_enabled() == false)
-                theFuji->fujicore_mount_all_at_startup();
-#endif /* BUILD_ATARI */
             mdns_init();
             mdns_hostname_set(Config.get_general_devicename().c_str());
             add_mdns_services();

@@ -33,8 +33,8 @@ You can either write your own, or use build.sh to generate a new local ini file 
 To do the latter, run the following:
 
 ```sh
-# use fujinet-atari-v1 for example
-./build.sh -s fujinet-atari-v1
+# use fujinet-rs232-s3 for example
+./build.sh -s fujinet-rs232-s3
 ```
 
 Board names can be found in `build-platforms/platformio-*.ini`
@@ -63,26 +63,26 @@ This allows users to keep just their changes in the git-ignored file `platformio
 You can specify the local file that will be used (in both reading and generating as new) with the `-l FILE` parameter
 
 ```sh
-./build.sh -s fujinet-atari-v1 -l platformio.local-atari.ini
+./build.sh -s fujinet-rs232-s3 -l platformio.local-s3.ini
 ```
-The above will generate a new local file, but name it `platformio.local-atari.ini` instead
+The above will generate a new local file, but name it `platformio.local-s3.ini` instead
 of the default `platformio.local.ini`
 
 You can then use this file in building the application, instead of the default file. This is
-useful if you have several devices, e.g. if you generate `platformio.local-apple.ini` and `platformio.local-atari.ini`, then you can build with them:
+useful if you have several devices, e.g. if you generate `platformio.local-rev0.ini` and `platformio.local-s3.ini`, then you can build with them:
 
 ```sh
-# generate the apple/atari ini files:
-./build.sh -ys fujinet-atari-v1 -l platformio.local-atari.ini
-./build.sh -ys fujiapple-rev0 -l platformio.local-apple.ini
+# generate the rev0/s3 ini files:
+./build.sh -ys fujinet-rs232-s3 -l platformio.local-s3.ini
+./build.sh -ys fujinet-rs232-rev0 -l platformio.local-rev0.ini
 
 # you can edit the above to add any additional flags, change monitor speed/port etc if required
 
-# clean/build/upload/monitor ATARI platform
-./build.sh -cbum -l platformio.local-atari.ini
+# clean/build/upload/monitor the S3 board
+./build.sh -cbum -l platformio.local-s3.ini
 
-# clean/build/upload/monitor APPLE platform
-./build.sh -cbum -l platformio.local-apple.ini
+# clean/build/upload/monitor the rev0 board
+./build.sh -cbum -l platformio.local-rev0.ini
 ```
 
 which saves you from having to regenerate the file when you're switching machines.
@@ -93,7 +93,7 @@ This is a standard ini file with one additional feature; you can specify `+=` to
 
 ```ini
 [fujinet]
-build_board = fujinet-atari-v1
+build_board = fujinet-rs232-s3
 
 [env]
 upload_port = /dev/ttyOTHER
@@ -102,10 +102,10 @@ build_flags +=
         -D FNCONFIG_DEBUG=1
         -D VERBOSE_HTTP
 
-[env:fujinet-atari-v1]
+[env:fujinet-rs232-s3]
 
 build_flags +=
-        -D FN_HISPEED_INDEX=0
+        -D RS232_NO_HW_FLOW_CONTROL
 ```
 
 Using the `-s BUILD_BOARD` option detailed previously will generate a new `platformio.local.ini` file with just the `[fujinet]` section and the named BUILD_BOARD value set.
@@ -127,7 +127,7 @@ generate default full platformio ini files.
 If you want to generate a different full platformio ini file, you can do this directly with the `-i INI_FILE_NAME` and optionally use it in combination with `-l LOCAL_FILE` to pull different local values in.
 
 ```sh
-./build.sh -i platformio-my-full-generated-file.ini -l platformio.local-atari-release.ini
+./build.sh -i platformio-my-full-generated-file.ini -l platformio.local-s3-release.ini
 ```
 
 As the build always re-generates the INI file used for a build (specified with `-i`), the above command

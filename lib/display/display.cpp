@@ -59,7 +59,6 @@ static const uint16_t timing_bits[16] = {
     0x1111, 0x7111, 0x1711, 0x7711, 0x1171, 0x7171, 0x1771, 0x7771,
     0x1117, 0x7117, 0x1717, 0x7717, 0x1177, 0x7177, 0x1777, 0x7777};
 
-
 static void display_task(void *args)
 {
     Display *d = (Display *)args;
@@ -161,7 +160,6 @@ void Display::show_activity()
 
     // Set all leds to black
     fill_all((CRGB){.r=0, .g=0, .b=0});
-
 
     // // Number of leds to light up
     ws28xx_pixels[curr_led] = (CRGB){.r=0, .g=100, .b=0};
@@ -265,7 +263,6 @@ void Display::start(void)
         Debug_printv("Could not start DISPLAY task!");
     }
 }
-
 
 void Display::blink(void) 
 {

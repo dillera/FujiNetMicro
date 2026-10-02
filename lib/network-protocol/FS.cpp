@@ -74,9 +74,7 @@ fujiError_t NetworkProtocolFS::open_file()
 fujiError_t NetworkProtocolFS::open_dir(dirFormat_t fmt)
 {
     streamType = streamType_t::DIR;
-#ifndef BUILD_ATARI
     this->setLineEnding("\r\n");
-#endif /* BUILD_RS232 */
     dirBuffer.clear();
     dirBuffer.shrink_to_fit();
     update_dir_filename(opened_url);
@@ -179,13 +177,6 @@ fujiError_t NetworkProtocolFS::open_dir(dirFormat_t fmt)
                      blocks_used, 65535u + blocks_used);
         dirBuffer += std::string(lineEnding) + trailer + lineEnding;
     }
-
-#ifdef BUILD_ATARI
-    // Finally, drop a FREE SECTORS trailer -- but not for RAW, which is
-    // machine-parsed filename-only output (a trailer would look like a file).
-    if (fmt != DIR_FORMAT::RAW)
-        dirBuffer += "999+FREE SECTORS\x9b";
-#endif /* BUILD_ATARI */
 
     if (error == NDEV_STATUS::END_OF_FILE)
         error = NDEV_STATUS::SUCCESS;
@@ -466,7 +457,6 @@ fujiError_t NetworkProtocolFS::rename(PeoplesUrlParser *url)
 size_t NetworkProtocolFS::available()
 {
     size_t avail;
-
 
     switch (streamType)
     {

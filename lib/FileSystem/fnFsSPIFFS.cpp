@@ -164,17 +164,12 @@ success_is_true FileSystemSPIFFS::start()
 
     // Set our basepath
 #ifdef ESP_PLATFORM
-#ifndef BUILD_IEC
     strlcpy(_basepath, "/spiffs", sizeof(_basepath));
-#else
-    strlcpy(_basepath, "", sizeof(_basepath));
-#endif
 // ESP_PLATFORM
 #else
 // !ESP_PLATFORM
     strlcpy(_basepath, "data", sizeof(_basepath));
 #endif
-
 
 #ifdef ESP_PLATFORM
     esp_vfs_spiffs_conf_t conf = {

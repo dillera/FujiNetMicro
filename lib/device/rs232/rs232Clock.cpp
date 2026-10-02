@@ -1,4 +1,3 @@
-#ifdef BUILD_RS232
 
 #include "rs232Clock.h"
 
@@ -11,4 +10,3 @@ std::optional<std::string> rs232Clock::fujidev_read_tz()
     return read_tz_from_payload();
 }
 
-#endif /* BUILD_RS232 */

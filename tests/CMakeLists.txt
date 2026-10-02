@@ -181,60 +181,14 @@ add_test(
             ${CMAKE_SOURCE_DIR}/lib/media
 )
 
-if(FUJINET_TARGET STREQUAL "ATARI")
-  add_executable(sio_dstats_tests
-    sioNetwork-DSTATS-test.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/NDevice/NDevice.cpp
-    ${CMAKE_SOURCE_DIR}/lib/device/sio/sioNetwork.cpp
-    )
-  target_include_directories(sio_dstats_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/include/
-    ${CMAKE_SOURCE_DIR}/lib/
-    ${CMAKE_SOURCE_DIR}/lib/bus/
-    ${CMAKE_SOURCE_DIR}/lib/sam/
-    ${CMAKE_SOURCE_DIR}/lib/device/
-    ${CMAKE_SOURCE_DIR}/lib/config/
-    ${CMAKE_SOURCE_DIR}/lib/printer-emulator/
-    ${CMAKE_SOURCE_DIR}/lib/FileSystem/
-    ${CMAKE_SOURCE_DIR}/lib/encoding/
-    ${CMAKE_SOURCE_DIR}/lib/media/
-    ${CMAKE_SOURCE_DIR}/lib/fuji/
-    ${CMAKE_SOURCE_DIR}/lib/modem-sniffer/
-    ${CMAKE_SOURCE_DIR}/lib/telnet/
-    ${CMAKE_SOURCE_DIR}/lib/device/NDevice/
-    ${CMAKE_SOURCE_DIR}/lib/device/fujiDevice/
-    ${CMAKE_SOURCE_DIR}/lib/hardware/
-    ${CMAKE_SOURCE_DIR}/lib/tcpip/
-    ${CMAKE_SOURCE_DIR}/lib/compat/
-    ${CMAKE_SOURCE_DIR}/lib/network-protocol/
-    ${CMAKE_SOURCE_DIR}/lib/utils/
-    ${CMAKE_SOURCE_DIR}/lib/ftp/
-    ${CMAKE_SOURCE_DIR}/lib/webdav/
-    ${CMAKE_SOURCE_DIR}/lib/http/
-    ${CMAKE_SOURCE_DIR}/lib/TNFSlib/
-    ${CMAKE_SOURCE_DIR}/lib/fnjson/
-    ${CMAKE_SOURCE_DIR}/lib/fnhtml/
-    ${CMAKE_SOURCE_DIR}/lib/fntext/
-    ${CMAKE_SOURCE_DIR}/lib/fnxml/
-    ${CMAKE_SOURCE_DIR}/components_pc/
-    ${CMAKE_SOURCE_DIR}/components_pc/libssh/include/
-    ${CMAKE_SOURCE_DIR}/build/components_pc/libssh/include/
-    ${CMAKE_SOURCE_DIR}/components_pc/cJSON/
-    ${CMAKE_SOURCE_DIR}/components_pc/mongoose/
-    ${CMAKE_SOURCE_DIR}/components/gumbo-query/
-    ${MBEDTLS_INCLUDE_DIR}
-    )
-  target_link_libraries(sio_dstats_tests PRIVATE)
-  add_test(NAME sio_dstats_tests COMMAND sio_dstats_tests)
-
+if(FUJINET_TARGET STREQUAL "RS232")
   # ----------------------------------------------------------------------------
   # The query output mode, end to end through a real parser: NET_SET_PARAMETER
   # flags, NET_QUERY, and the bytes that come back. XMLParser stands in for all
   # three modes - the flag plumbing and the ASCII fold are shared - and it is the
   # one whose library (tinyxml2) links without Gumbo or cJSON behind it.
   #
-  # ATARI-only for the same reason as sio_dstats_tests: the bus headers need a
-  # concrete systemBus.
+  # RS232-only: the bus headers need a concrete systemBus.
   #
   # NParserReadTests.cpp shares its stubs: NParser::read() when the protocol
   # leaves fewer bytes than asked for (#1689).
@@ -324,97 +278,6 @@ if(HAVE_SYS_QUEUE_H)
   add_test(NAME http_header_tests COMMAND http_header_tests)
 else()
   message(STATUS "sys/queue.h not available - skipping http_header_tests")
-endif()
-
-# ------------------------------------------------------------------------------
-# Macintosh GCR floppy encoder. Pure C++, no platform dependencies. Encodes a
-# synthetic 800K disk and decodes every sector back with an independent
-# decoder. Pass a 400K/800K .dsk on the command line to test a real image.
-# ------------------------------------------------------------------------------
-add_executable(mac_gcr_tests
-    mac_gcr_test.cpp
-    ${CMAKE_SOURCE_DIR}/lib/media/mac/macGCR.cpp
-)
-target_include_directories(mac_gcr_tests PRIVATE ${CMAKE_SOURCE_DIR}/lib/)
-add_test(NAME mac_gcr_tests COMMAND mac_gcr_tests)
-
-# ------------------------------------------------------------------------------
-# lib/stuffit: unsit is a host CLI over the library. The sample tests compare
-# it against unar and ndif2raw; they need -DSIT_SAMPLES_DIR / -DNDIF2RAW_DIR
-# (or the same environment variables) and are skipped otherwise.
-# ------------------------------------------------------------------------------
-add_executable(unsit
-    unsit.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/stuffit.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_io.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_crc16.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_rle90.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_lzw.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_prefixcode.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_huffman.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_lzh13.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_bwt.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_arsenic.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/binhex.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/ndif.c
-)
-target_include_directories(unsit PRIVATE ${CMAKE_SOURCE_DIR}/lib/)
-
-find_program(UNAR_EXECUTABLE unar)
-if(NOT DEFINED SIT_SAMPLES_DIR)
-  set(SIT_SAMPLES_DIR "$ENV{SIT_SAMPLES_DIR}")
-endif()
-
-if(UNAR_EXECUTABLE AND SIT_SAMPLES_DIR AND EXISTS "${SIT_SAMPLES_DIR}")
-  add_test(NAME stuffit_sample_tests
-    COMMAND ${CMAKE_COMMAND} -E env
-      "UNSIT_BIN=$<TARGET_FILE:unsit>"
-      "UNAR_BIN=${UNAR_EXECUTABLE}"
-      "SIT_SAMPLES_DIR=${SIT_SAMPLES_DIR}"
-      bash ${CMAKE_CURRENT_SOURCE_DIR}/stuffit_test.sh
-  )
-  set_tests_properties(stuffit_sample_tests PROPERTIES DEPENDS unsit)
-else()
-  message(STATUS "unar or SIT_SAMPLES_DIR not found - skipping stuffit_sample_tests")
-endif()
-
-add_executable(ndif_blocks_test
-    ndif_blocks_test.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/stuffit.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_io.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_crc16.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_rle90.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_lzw.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_prefixcode.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_huffman.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_lzh13.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_bwt.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/sit_arsenic.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/binhex.c
-    ${CMAKE_SOURCE_DIR}/lib/stuffit/ndif.c
-)
-target_include_directories(ndif_blocks_test PRIVATE ${CMAKE_SOURCE_DIR}/lib/)
-
-find_program(NDIF2RAW_MAKE make)
-if(NOT DEFINED NDIF2RAW_DIR)
-  set(NDIF2RAW_DIR "$ENV{NDIF2RAW_DIR}")
-endif()
-set(NOW_SOFTWARE_SIT "${SIT_SAMPLES_DIR}/Now_Software.sit")
-
-if(UNAR_EXECUTABLE AND NDIF2RAW_MAKE AND NDIF2RAW_DIR AND EXISTS "${NDIF2RAW_DIR}" AND EXISTS "${NOW_SOFTWARE_SIT}")
-  add_test(NAME ndif_sample_tests
-    COMMAND ${CMAKE_COMMAND} -E env
-      "UNSIT_BIN=$<TARGET_FILE:unsit>"
-      "NDIF_BLOCKS_TEST_BIN=$<TARGET_FILE:ndif_blocks_test>"
-      "UNAR_BIN=${UNAR_EXECUTABLE}"
-      "MAKE_BIN=${NDIF2RAW_MAKE}"
-      "NDIF2RAW_DIR=${NDIF2RAW_DIR}"
-      "NOW_SOFTWARE_SIT=${NOW_SOFTWARE_SIT}"
-      bash ${CMAKE_CURRENT_SOURCE_DIR}/ndif_test.sh
-  )
-  set_tests_properties(ndif_sample_tests PROPERTIES DEPENDS unsit)
-else()
-  message(STATUS "unar, make, NDIF2RAW_DIR or Now_Software.sit not found - skipping ndif_sample_tests")
 endif()
 
 # ------------------------------------------------------------------------------

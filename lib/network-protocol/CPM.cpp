@@ -119,11 +119,7 @@ fujiError_t NetworkProtocolCPM::open(PeoplesUrlParser *urlParser,
     if (_cpm_rxq == nullptr || _cpm_txq == nullptr
         || xTaskCreatePinnedToCore(_cpm_task_entry,
                                    "cpmnet",
-#ifdef BUILD_APPLE
-                                   4096,
-#else
                                    32768,
-#endif
                                    nullptr,
                                    20,
                                    &cpmTaskHandle,

@@ -38,9 +38,7 @@ class fnHttpServiceConfigurator
     static void config_alt_filename(std::string alt_cfg);
     static void config_pclink_enabled(std::string pclink_enabled);
 
-#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
     static void config_serial(std::string port, std::string baud, std::string command, std::string proceed);
-#endif
     static void config_boip(std::string enable_boip, std::string boip_host_port);
 
 public:
