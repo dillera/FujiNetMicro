@@ -2,7 +2,9 @@ extends: base
 components:
   serial_port: true
   emulator_settings: true
-  cpm_settings: true
+  cpm_settings: false
+  printer_settings: false
+  modem_settings: false
   hotsync: true
 tweaks:
   platform: RS232
