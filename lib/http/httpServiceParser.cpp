@@ -133,6 +133,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_ALT_CFG,
         FN_PCLINK_ENABLED,
         FN_GDRIVE_CONNECTED,
+        FN_GDRIVE_CLIENT_ID,
         FN_ONEDRIVE_CONNECTED,
         FN_PASSWORD_SET,
         FN_APPKEY_COUNT,
@@ -252,6 +253,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_ALT_CFG",
         "FN_PCLINK_ENABLED",
         "FN_GDRIVE_CONNECTED",
+        "FN_GDRIVE_CLIENT_ID",
         "FN_ONEDRIVE_CONNECTED",
         "FN_PASSWORD_SET",
         "FN_APPKEY_COUNT",
@@ -567,6 +569,11 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         resultstream << Config.get_config_filename();
         break;
 
+    case FN_GDRIVE_CLIENT_ID:
+        // Blank while the project's client is in use.
+        if (Config.get_gdrive_client_id() != GOOGLE_DEFAULT_CLIENT_ID)
+            resultstream << Config.get_gdrive_client_id();
+        break;
     case FN_GDRIVE_CONNECTED:
         resultstream << (Config.get_gdrive_refresh_token().empty() ? "0" : "1");
         break;
