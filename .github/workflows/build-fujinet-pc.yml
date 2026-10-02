@@ -77,25 +77,6 @@ jobs:
               -DOPENSSL_INCLUDE_DIR=/usr/include
               -DOPENSSL_CRYPTO_LIBRARY=/usr/lib/arm-linux-gnueabihf/libcrypto.so
               -DOPENSSL_SSL_LIBRARY=/usr/lib/arm-linux-gnueabihf/libssl.so
-          - name: macOS 15 ARM
-            target: macos-15-arm64
-            runner: macos-15
-            default-shell: bash
-          - name: macOS 14 ARM
-            target: macos-14-arm64
-            runner: macos-14
-            default-shell: bash
-          - name: Windows
-            target: windows-x64
-            runner: windows-latest
-            sys: clang64
-            default-shell: msys2 {0}
-          # # mbedtls not available anymore for clang32 :-(
-          # - name: Windows x86
-          #   target: windows-x86
-          #   runner: windows-latest
-          #   sys: clang32
-          #   default-shell: msys2 {0}
         fujinet_target:
           - RS232
 
@@ -110,30 +91,6 @@ jobs:
       build_date: ${{ steps.version.outputs.build_date }}
 
     steps:
-    # Setup MSYS2 on Windows
-    - name: '[Windows] Setup MSYS2'
-      if: ${{ startsWith(matrix.os.target, 'windows') }}
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: ${{matrix.os.sys}}
-        update: true
-        install: >-
-          git
-          base-devel
-        pacboy: >-
-          toolchain:p
-          cmake:p
-          ninja:p
-          python-pip:p
-          mbedtls:p
-
-    - name: '[macOS] Install MbedTLS'
-      if: ${{ startsWith(matrix.os.target, 'macos') }}
-      run: |
-        brew update
-        brew install mbedtls@3
-        brew link --force --overwrite mbedtls@3
-
     - name: '[Ubuntu] Install MbedTLS'
       if: ${{ startsWith(matrix.os.target, 'ubuntu') && !endsWith(matrix.os.target, 'armhf') }}
       run: |
@@ -164,7 +121,6 @@ jobs:
     #   run: git fetch --prune --unshallow --tags
 
     - name: 'Install Python'
-      # if: ${{ !startsWith(matrix.os.target, 'windows') }}
       uses: actions/setup-python@v5
       id: cp310
       with:
@@ -186,19 +142,9 @@ jobs:
       run: |
         '${{ steps.cp310.outputs.python-path }}' -m pip install -U Jinja2 pyyaml
 
-    - name: '[regular OS] 🚧 Build FujiNet-PC (matrix.fujinet_target)'
-      if: ${{ !startsWith(matrix.os.target, 'windows') }}
+    - name: '🚧 Build FujiNet-PC (matrix.fujinet_target)'
       run: |
         ./build.sh -p ${{ matrix.fujinet_target }} -- ${{ matrix.os.cmake-args }}
-
-    # For MSYS tune PATH variable for PYTHON:
-    # add 'C:\hostedtoolcache\windows\Python\3.10.11\x64' as '/c/hostedtoolcache/windows/Python/3.10.11/x64'
-    - name: '[Windows MSYS2] 🚧 Build FujiNet-PC (matrix.fujinet_target)'
-      if: ${{ startsWith(matrix.os.target, 'windows') }}
-      run: |
-        export PATH=$(printenv pythonLocation | sed 's@\\@/@g' | sed 's@^c:/@/c/@i'):$PATH
-        printenv PATH
-        ./build.sh -p ${{ matrix.fujinet_target }}
 
     # - name: Configure CMake
     #   #run: cmake -B build -DFUJINET_TARGET=${{matrix.fujinet_target}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
@@ -253,8 +199,7 @@ jobs:
     - name: Zip release files
       working-directory: release
       run: |
-        for D in fujinet-pc-*_*ubuntu* fujinet-pc-*_*macos*; do gzip -9v $D/fujinet-pc-*_*.tar; done
-        for D in fujinet-pc-*_*windows*; do (cd $D; F=(fujinet-pc-*_*.tar); tar -xvf $F; rm -f $F; zip -r ${F%.*}.zip fujinet-pc-*); done
+        for D in fujinet-pc-*_*ubuntu*; do gzip -9v $D/fujinet-pc-*_*.tar; done
 
     - name: Prepare Release Draft
       if: ${{ github.event.inputs.prepRelease == 'true' }}
@@ -265,7 +210,6 @@ jobs:
           draft: true
           files: |
             release/fujinet-pc-*_*/fujinet-pc-*_*.tar.gz
-            release/fujinet-pc-*_*/fujinet-pc-*_*.zip
 
     - name: Create Nightly Build Release
       if: ${{ github.event_name == 'schedule' }}
@@ -273,14 +217,13 @@ jobs:
       with:
           name: "FujiNet-PC Nightly ${{ needs.build.outputs.build_date }}"
           body: |
-            FujiNet-PC **${{ needs.build.outputs.fujinet_version }}** nightly builds for: Apple 2, Atari 8-bit and Tandy Color Computer
+            FujiNet-PC **${{ needs.build.outputs.fujinet_version }}** nightly builds for the RS232 target
             ⚠️ There is NO guarantee that these builds work!! ⚠️
           tag_name: nightly_fn_pc_${{ needs.build.outputs.fujinet_version }}
           prerelease: true
           make_latest: false
           files: |
             release/fujinet-pc-*_*/fujinet-pc-*_*.tar.gz
-            release/fujinet-pc-*_*/fujinet-pc-*_*.zip
 
   postrelease:
     if: ${{ github.event_name == 'schedule' }}

@@ -19,6 +19,7 @@ jobs:
     name: "PlatformIO CI"
     runs-on: "ubuntu-latest"
     strategy:
+      fail-fast: false
       matrix:
         target-platform:
           - RS232
