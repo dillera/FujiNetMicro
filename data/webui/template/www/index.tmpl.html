@@ -1259,6 +1259,159 @@
 				</form>
 			</div>
 			{% endif %}
+			{% if components.hotsync %}
+			<div class="module" {% if components.hotsync == "experimental" %}data-experimental{% endif %}>
+				<form action="/config" method="post">
+				<div class="settings">
+					<div class="settings-header">
+						Palm HotSync
+					</div>
+					<div class="settings-left">
+						<div class="svgicon">
+							<svg width="80%" height="80%" viewBox="0 0 40 60" xmlns="http://www.w3.org/2000/svg">
+								<rect x="2" y="2" width="36" height="56" rx="6" fill="#454545" stroke="#000" stroke-width="2"/>
+								<rect x="7" y="8" width="26" height="26" fill="#9db08a"/>
+								<rect x="7" y="37" width="26" height="9" fill="#cfcfcf"/>
+								<circle cx="11" cy="52" r="2.5" fill="#cfcfcf"/>
+								<circle cx="20" cy="52" r="2.5" fill="#cfcfcf"/>
+								<circle cx="29" cy="52" r="2.5" fill="#cfcfcf"/>
+							</svg>
+						</div>
+					</div>
+					<div class="settings-content settings-55-45">
+						<div class="set">
+							<div class="settings-label">
+								<label>HotSync server</label>
+							</div>
+							<div class="settings-value">
+								<div class="radio-container">
+									<input id="hotsync-yes" name="hotsync_enabled" type="radio" value="1">
+									<label for="hotsync-yes" class="r-yes-no">On</label>
+									<input id="hotsync-no" name="hotsync_enabled" type="radio" value="0">
+									<label for="hotsync-no" class="r-yes-no">Off</label>
+								</div>
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>User name for a new Palm</label>
+							</div>
+							<div class="settings-value">
+								<input type="text" name="hotsync_user" value="<%FN_HOTSYNC_USER%>">
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Back up</label>
+							</div>
+							<div class="settings-value">
+								<select name="hotsync_backup" id="select_hotsync_backup">
+									<option value="flagged">Databases marked for backup</option>
+									<option value="all">Every database</option>
+									<option value="none">Nothing</option>
+								</select>
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Calendar for the Date Book</label>
+							</div>
+							<div class="settings-value">
+								<input type="text" name="hotsync_calendar" value="<%FN_HOTSYNC_CALENDAR%>">
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Days of past / future events</label>
+							</div>
+							<div class="settings-value">
+								<input type="text" name="hotsync_calendar_days_back" size="3" value="<%FN_HOTSYNC_DAYS_BACK%>">
+								<input type="text" name="hotsync_calendar_days_ahead" size="3" value="<%FN_HOTSYNC_DAYS_AHEAD%>">
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Calendar fetch</label>
+							</div>
+							<div class="settings-value">
+								<span id="hotsync-cal-status">&hellip;</span>
+								<div><button type="button" id="hotsync-fetch-btn">Fetch now</button></div>
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Last HotSync</label>
+							</div>
+							<div class="settings-value">
+								<span id="hotsync-last">&hellip;</span>
+							</div>
+						</div>
+						<hr>
+						<div class="settings-text">
+							<p>Each HotSync copies the calendar's events into the Palm's Date Book. Appointments made on the Palm are left alone.</p>
+							<p><strong>GCAL:///</strong> is every calendar shown in Google Calendar (authorize Google under Google Account); <strong>GCAL://Work/</strong> is one calendar; <strong>ICAL://host/feed.ics</strong> is an iCalendar feed. Enter <strong>off</strong> to leave the Date Book alone.</p>
+							<p>Times use the timezone set above. Changes take effect when FujiNet restarts.</p>
+						</div>
+						<script>
+							var current_hotsync_enabled = "<%FN_HOTSYNC_ENABLED%>";
+							var current_hotsync_backup = "<%FN_HOTSYNC_BACKUP%>";
+							(function() {
+								var statusEl = document.getElementById("hotsync-cal-status");
+								var lastEl = document.getElementById("hotsync-last");
+								var btn = document.getElementById("hotsync-fetch-btn");
+								var s = null, at = 0;
+								function clock(sec) {
+									sec = Math.max(0, Math.round(sec));
+									return Math.floor(sec / 60) + ":" + ("0" + (sec % 60)).slice(-2);
+								}
+								function ago(sec) {
+									if (sec < 60) return "just now";
+									if (sec < 3600) return Math.floor(sec / 60) + " min ago";
+									return Math.floor(sec / 3600) + " h ago";
+								}
+								function render() {
+									if (!s) return;
+									if (!s.running) { statusEl.textContent = "HotSync server is off."; btn.disabled = true; return; }
+									if (!s.calendar) { statusEl.textContent = "No calendar set."; btn.disabled = true; return; }
+									var gone = (Date.now() - at) / 1000, parts = [];
+									if (s.fetching) parts.push("Fetching now\u2026");
+									else if (s.error) parts.push("Last fetch failed: " + s.error + ".");
+									if (s.fetched_ago >= 0)
+										parts.push(s.events + " events ready, fetched " + ago(s.fetched_ago + gone) + ".");
+									else if (!s.fetching && !s.error)
+										parts.push("Not fetched yet.");
+									if (!s.fetching && s.next_fetch_in >= 0)
+										parts.push("Next fetch in " + clock(s.next_fetch_in - gone) + ".");
+									statusEl.textContent = parts.join(" ");
+									btn.disabled = s.fetching;
+									lastEl.textContent = s.last_sync || "None yet";
+								}
+								function poll(fetchNow) {
+									fetch("/hotsync-status" + (fetchNow ? "?fetch=1" : ""))
+										.then(function(r){ return r.json(); })
+										.then(function(d){ s = d; at = Date.now(); render(); })
+										.catch(function(){ statusEl.textContent = "Could not reach FujiNet."; });
+								}
+								btn.addEventListener("click", function(e) {
+									e.preventDefault(); btn.disabled = true;
+									statusEl.textContent = "Asking FujiNet to fetch\u2026";
+									poll(true);
+								});
+								poll(false);
+								setInterval(render, 1000);
+								setInterval(function(){ poll(false); }, 5000);
+							})();
+						</script>
+					</div>
+					<div class="settings-footer">
+						<div class="save-button">
+							<button type="submit" value="Save">Save</button>
+						</div>
+					</div>
+				</div>
+				</form>
+			</div>
+			{% endif %}
 			{% if components.pclink %}
 			<div class="module" {% if components.pclink == "experimental" %}data-experimental{% endif %}>
 				<form action="/config" method="post">
@@ -1374,9 +1527,38 @@
 								<p>Google may show an &ldquo;app isn&rsquo;t verified&rdquo; warning. Click <strong>Advanced &rarr; Go to FujiNet</strong> to continue.</p>
 								<p><strong>Already authorized?</strong> Calendar access was added later, so an older authorization does not include it. Authorize again to use <strong>GCAL:</strong>.</p>
 							</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Your own OAuth client ID (optional)</label>
+							</div>
+							<div class="settings-value">
+								<input type="text" name="gdrive_client_id" value="<%FN_GDRIVE_CLIENT_ID%>">
+							</div>
+						</div>
+						<div class="set">
+							<div class="settings-label">
+								<label>Its client secret</label>
+							</div>
+							<div class="settings-value">
+								<input type="password" name="gdrive_client_secret" autocomplete="off">
+							</div>
+						</div>
+						<div class="settings-text">
+							<p>To use a <strong>Desktop app</strong> OAuth client from your own Google Cloud project instead of FujiNet's, enter its ID and secret and Save, then Authorize. Enter <strong>default</strong> to go back to FujiNet's. Changing client signs FujiNet out of Google.</p>
+						</div>
+						<div class="set" id="gdrive-paste-row" style="display:none">
+							<div class="settings-label">
+								<label>Address after approving</label>
+							</div>
+							<div class="settings-value">
+								<input type="text" id="gdrive-paste" placeholder="http://127.0.0.1/?state=...">
+								<div><button id="gdrive-finish-btn" type="button">Finish</button></div>
+							</div>
+						</div>
 						</div>
 						<div class="settings-footer">
 							<div class="save-button">
+								<button type="submit" value="Save">Save</button>
 								<button id="gdrive-auth-btn" type="button">Authorize with Google</button>
 							</div>
 							<div class="settings-text" style="margin-top:0.5em">
@@ -1415,10 +1597,47 @@
 											statusEl.textContent = "Poll error.";
 										});
 								}
+								// Enter in the address box would submit the settings form.
+								document.getElementById("gdrive-paste").addEventListener("keydown", function(e) {
+									if (e.key === "Enter") { e.preventDefault(); document.getElementById("gdrive-finish-btn").click(); }
+								});
+								document.getElementById("gdrive-finish-btn").addEventListener("click", function(e) {
+									e.preventDefault();
+									var text = document.getElementById("gdrive-paste").value.trim();
+									var code = text;
+									try { code = new URL(text).searchParams.get("code") || text; } catch (err) {}
+									statusEl.textContent = "Finishing...";
+									fetch("/gdrive-poll?state=" + encodeURIComponent(pollState) + "&code=" + encodeURIComponent(code))
+										.then(function(r){ return r.json(); })
+										.then(function(d){
+											document.getElementById("gdrive-auth-btn").disabled = false;
+											if (d.status === "authorized") {
+												indicator.textContent = "Connected"; indicator.style.color = "green";
+												document.getElementById("gdrive-paste-row").style.display = "none";
+												statusEl.textContent = "Authorization complete!";
+											} else {
+												statusEl.textContent = "Authorization failed: " + (d.message || d.status);
+											}
+										}).catch(function(){
+											document.getElementById("gdrive-auth-btn").disabled = false;
+											statusEl.textContent = "Could not reach FujiNet.";
+										});
+								});
+								// Save a client typed into the panel first, so Authorize uses it.
+								function saveClient() {
+									var form = document.getElementById("gdrive-auth-btn").form;
+									var id = form.elements["gdrive_client_id"].value.trim();
+									var secret = form.elements["gdrive_client_secret"].value.trim();
+									if (!secret) return Promise.resolve();
+									var body = new URLSearchParams();
+									body.append("gdrive_client_id", id || "default");
+									body.append("gdrive_client_secret", secret);
+									return fetch("/config", {method: "POST", body: body});
+								}
 								document.getElementById("gdrive-auth-btn").addEventListener("click", function(e) {
 									e.preventDefault(); this.disabled = true;
 									statusEl.textContent = "Starting...";
-									fetch("/gdrive-auth").then(function(r){ return r.json(); }).then(function(d){
+									saveClient().then(function(){ return fetch("/gdrive-auth"); }).then(function(r){ return r.json(); }).then(function(d){
 										if (d.error) {
 											document.getElementById("gdrive-auth-btn").disabled = false;
 											statusEl.textContent = "Error: " + d.error;
@@ -1426,6 +1645,11 @@
 										}
 										pollState = d.state;
 										window.open(d.auth_url, "_blank");
+										if (d.mode === "paste") {
+											document.getElementById("gdrive-paste-row").style.display = "";
+											statusEl.textContent = "Approve in the new tab. It then fails to load 127.0.0.1: copy that tab's whole address into the box here and click Finish.";
+											return;
+										}
 										statusEl.textContent = "Approve in the new tab, then wait...";
 										pollTimer = setInterval(doPoll, 3000);
 									}).catch(function(){

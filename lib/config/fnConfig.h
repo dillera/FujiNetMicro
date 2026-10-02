@@ -8,6 +8,10 @@
 #include "../../include/debug.h"
 
 #define MAX_HOST_SLOTS 8
+// The FujiNet project's Google OAuth client and relay, used unless
+// [GoogleDrive] client_id / relay name another.
+#define GOOGLE_DEFAULT_CLIENT_ID "197927610161-me037pnh65lh9g8cad6fg62ifni9fik0.apps.googleusercontent.com"
+#define GOOGLE_DEFAULT_RELAY "https://auth.fujinet.online"
 #define MAX_MOUNT_SLOTS 8
 #define MAX_PRINTER_SLOTS 4
 #define MAX_TAPE_SLOTS 1
@@ -240,6 +244,12 @@ public:
     std::string get_gdrive_refresh_token() { return _gdrive.refresh_token; };
     std::string get_gdrive_access_token() { return _gdrive.access_token; };
     long get_gdrive_token_expiry() { return _gdrive.token_expiry; };
+    // The OAuth client and the relay that holds its secret; see tools/gdrive-relay.
+    std::string get_gdrive_client_id() { return _gdrive.client_id; };
+    std::string get_gdrive_relay() { return _gdrive.relay; };
+    // Set for a "Desktop app" client of the user's own; see lib/http/google_oauth.h.
+    std::string get_gdrive_client_secret() { return _gdrive.client_secret; };
+    void store_gdrive_client(const std::string &client_id, const std::string &client_secret);
     void store_gdrive_refresh_token(const std::string &refresh_token);
     void store_gdrive_access_token(const std::string &access_token);
     void store_gdrive_token_expiry(long expiry);
@@ -308,9 +318,14 @@ public:
     int get_hotsync_netsync_port() { return _hotsync.netsync_port; }
     int get_hotsync_emulator_port() { return _hotsync.emulator_port; }
     std::string get_hotsync_serial_port() { return _hotsync.serial_port; }
+    std::string get_hotsync_calendar() { return _hotsync.calendar; }
+    int get_hotsync_calendar_days_back() { return _hotsync.calendar_days_back; }
+    int get_hotsync_calendar_days_ahead() { return _hotsync.calendar_days_ahead; }
     void store_hotsync_enabled(bool enabled);
     void store_hotsync_user(const std::string &user);
     void store_hotsync_backup(const std::string &backup);
+    void store_hotsync_calendar(const std::string &calendar);
+    void store_hotsync_calendar_days(int back, int ahead);
 
     void load();
     void save();
@@ -512,6 +527,15 @@ private:
 #else
         std::string serial_port;
 #endif
+        // Calendar copied into the Palm Date Book: a GCAL: or ICAL: devicespec
+        // such as "GCAL:///" (the calendars shown in Google). Empty turns it off.
+#ifdef HOTSYNC_CRADLE_DEFAULT
+        std::string calendar = "GCAL:///";
+#else
+        std::string calendar;
+#endif
+        int calendar_days_back = 7;
+        int calendar_days_ahead = 60;
     };
 
     struct serial_info
@@ -549,6 +573,9 @@ private:
         std::string refresh_token;
         std::string access_token;
         long token_expiry = 0;
+        std::string client_id = GOOGLE_DEFAULT_CLIENT_ID;
+        std::string relay = GOOGLE_DEFAULT_RELAY;
+        std::string client_secret;
     };
 
     struct s3_info

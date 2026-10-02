@@ -2,6 +2,7 @@
 
 #include "HotSyncFsStorage.h"
 #include "HotSyncLinks.h"
+#include "HotSyncNetCalendar.h"
 #include "NetSyncTransport.h"
 #include "PadpTransport.h"
 
@@ -16,12 +17,17 @@
 
 #include "../../include/debug.h"
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <random>
 
 static constexpr auto IDLE_POLL = std::chrono::milliseconds(50);
-static constexpr uint32_t HOTSYNC_TASK_STACK = 8192;
+// A calendar fetch runs a TLS handshake on this thread.
+static constexpr uint32_t HOTSYNC_TASK_STACK = 16384;
+static constexpr auto CALENDAR_REFRESH = std::chrono::minutes(10);
+static constexpr auto CALENDAR_RETRY = std::chrono::minutes(2);
+static constexpr int64_t SECONDS_PER_DAY = 86400;
 // Identifies FujiNet as "the PC" a device last synced with ("FJNT").
 static constexpr uint32_t HOTSYNC_PC_ID = 0x464A4E54;
 
@@ -66,6 +72,12 @@ HotSyncServiceConfig hotsync_config_from(fnConfig &config)
     out.netsync_port = config.get_hotsync_netsync_port();
     out.emulator_port = config.get_hotsync_emulator_port();
     out.serial_port = config.get_hotsync_serial_port();
+    out.calendar = config.get_hotsync_calendar();
+    out.calendar_days_back = config.get_hotsync_calendar_days_back();
+    out.calendar_days_ahead = config.get_hotsync_calendar_days_ahead();
+    out.timezone = config.get_general_timezone();
+    if (out.timezone == "UTC")
+        out.timezone.clear();
     return out;
 }
 
@@ -120,10 +132,15 @@ void HotSyncService::run()
 {
     HotSyncFsStorage(*_fs, _config.root).create_install_folder();
     open_cradle();
+    if (!_config.calendar.empty())
+        _calendar = std::make_unique<HotSyncNetCalendar>(_config.calendar, _config.timezone);
     while (!_stopping)
     {
         if (fnWiFi.connected())
+        {
             open_listeners();
+            refresh_calendar();
+        }
         else
             close_listeners();
 
@@ -273,6 +290,70 @@ void HotSyncService::sync(HotSyncLink &link, Transport transport)
     record(HotSyncSession(*dlp, storage, session_options()).run());
 }
 
+HotSyncCalendarStatus HotSyncService::calendar_status()
+{
+    std::lock_guard<std::mutex> lock(_result_lock);
+    HotSyncCalendarStatus status = _calendar_status;
+    status.source = _config.calendar;
+    if (_calendar && !status.fetching && _next_calendar_fetch.time_since_epoch().count() != 0)
+    {
+        auto left = std::chrono::duration_cast<std::chrono::seconds>(
+            _next_calendar_fetch - std::chrono::steady_clock::now());
+        status.next_fetch_in = _fetch_now ? 0 : std::max<int>(0, static_cast<int>(left.count()));
+    }
+    return status;
+}
+
+void HotSyncService::refresh_calendar()
+{
+    auto now = std::chrono::steady_clock::now();
+    if (!_calendar || (now < _next_calendar_fetch && !_fetch_now))
+        return;
+    // Until SNTP sets the clock there is no window to fetch.
+    int64_t utc = static_cast<int64_t>(std::time(nullptr));
+    if (utc < 1577836800)
+        return;
+    _fetch_now = false;
+    {
+        std::lock_guard<std::mutex> lock(_result_lock);
+        _calendar_status.fetching = true;
+    }
+
+    int64_t from = (utc / SECONDS_PER_DAY - _config.calendar_days_back) * SECONDS_PER_DAY;
+    int64_t to = (utc / SECONDS_PER_DAY + _config.calendar_days_ahead + 1) * SECONDS_PER_DAY;
+    int64_t asked = to;
+    std::vector<HotSyncEvent> events;
+    if (_calendar->fetch(from, to, events).is_error())
+    {
+        Debug_printf("HotSync: could not read calendar %s\r\n", _config.calendar.c_str());
+        std::lock_guard<std::mutex> lock(_result_lock);
+        _next_calendar_fetch = std::chrono::steady_clock::now() + CALENDAR_RETRY;
+        _calendar_status.fetching = false;
+        _calendar_status.error = _calendar->error();
+        if (_calendar_status.error.empty())
+            _calendar_status.error = "fetch failed";
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(_result_lock);
+        _calendar_status.fetching = false;
+        _calendar_status.fetched_at = static_cast<int64_t>(std::time(nullptr));
+        _calendar_status.events = static_cast<int>(events.size());
+        _calendar_status.error.clear();
+    }
+    _events = std::move(events);
+    _events_from = from;
+    _events_to = to;
+    _have_events = true;
+    {
+        std::lock_guard<std::mutex> lock(_result_lock);
+        _next_calendar_fetch = std::chrono::steady_clock::now() + CALENDAR_REFRESH;
+    }
+    Debug_printf("HotSync: %u calendar events ready for the Date Book%s\r\n",
+                 static_cast<unsigned>(_events.size()),
+                 to < asked ? " (window shortened to fit)" : "");
+}
+
 HotSyncOptions HotSyncService::session_options() const
 {
     HotSyncOptions options;
@@ -293,6 +374,14 @@ HotSyncOptions HotSyncService::session_options() const
         options.now.hour = local.tm_hour;
         options.now.minute = local.tm_min;
         options.now.second = local.tm_sec;
+        options.utc_now = static_cast<int64_t>(now);
+    }
+    if (_have_events)
+    {
+        options.calendar = &_events;
+        options.calendar_from = _events_from;
+        options.calendar_to = _events_to;
+        options.timezone = _config.timezone;
     }
     return options;
 }
@@ -303,6 +392,10 @@ void HotSyncService::record(const HotSyncReport &report)
                        " installed, " + std::to_string(report.backed_up) + " backed up";
     if (report.install_failures + report.backup_failures > 0)
         line += ", " + std::to_string(report.install_failures + report.backup_failures) + " failed";
+    if (report.calendar_synced)
+        line += ", Date Book +" + std::to_string(report.datebook.added) + " ~" +
+                std::to_string(report.datebook.updated) + " -" +
+                std::to_string(report.datebook.deleted);
     if (report.error != DlpError::NONE)
         line += std::string(" (") + dlp_error_name(report.error) + ")";
 

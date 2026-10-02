@@ -10,13 +10,16 @@
 // up to <root>/backup/<user>.
 
 #include "HotSyncBusPort.h"
+#include "HotSyncCalendar.h"
 #include "HotSyncSession.h"
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 class FileSystem;
 class fnTcpServer;
@@ -32,9 +35,25 @@ struct HotSyncServiceConfig {
     // Serial device for a cradle: a host device path on FujiNet-PC, or
     // HOTSYNC_BUS_SERIAL_PORT to share the platform bus port. Empty disables it.
     std::string serial_port;
+    // Calendar for the Date Book (see HotSyncNetCalendar); empty disables it.
+    std::string calendar;
+    int calendar_days_back = 7;
+    int calendar_days_ahead = 60;
+    // POSIX zone of the Palm's clock; empty or UTC reads it off the Palm.
+    std::string timezone;
 };
 
 constexpr const char *HOTSYNC_BUS_SERIAL_PORT = "bus";
+
+// What the web UI shows about the calendar fetch.
+struct HotSyncCalendarStatus {
+    std::string source;      // empty when no calendar is configured
+    bool fetching = false;
+    int64_t fetched_at = 0;  // UTC of the last good fetch, 0 if none
+    int events = 0;          // events from that fetch
+    std::string error;       // why the latest fetch failed; empty if it worked
+    int next_fetch_in = -1;  // seconds, -1 when none is due (e.g. no Wi-Fi yet)
+};
 
 class HotSyncService
 {
@@ -52,6 +71,10 @@ public:
     // One line describing the most recent sync, for the web UI.
     std::string last_result();
 
+    HotSyncCalendarStatus calendar_status();
+    // Fetch the calendar as soon as the service thread is free.
+    void fetch_calendar_now() { _fetch_now = true; }
+
 private:
     enum class Transport { NETSYNC, SERIAL_OVER_TCP };
     struct SerialCradle;
@@ -65,6 +88,7 @@ private:
     void listen_for_hotsync(SerialCradle &cradle);
     void sync(HotSyncLink &link, Transport transport);
     HotSyncOptions session_options() const;
+    void refresh_calendar();
     void record(const HotSyncReport &report);
 
     HotSyncServiceConfig _config;
@@ -78,6 +102,16 @@ private:
     std::string _last_result = "No HotSync yet";
 
     std::unique_ptr<SerialCradle> _cradle;
+
+    // Fetched ahead of time, so a sync does not keep the Palm waiting.
+    std::unique_ptr<HotSyncCalendar> _calendar;
+    std::vector<HotSyncEvent> _events;
+    int64_t _events_from = 0;
+    int64_t _events_to = 0;
+    bool _have_events = false;
+    std::chrono::steady_clock::time_point _next_calendar_fetch;
+    std::atomic<bool> _fetch_now{false};
+    HotSyncCalendarStatus _calendar_status; // guarded by _result_lock
 };
 
 class fnConfig;

@@ -17,6 +17,8 @@
 
 #include "fnSystem.h"
 #include "fnConfig.h"
+#include "google_oauth.h"
+#include "HotSyncService.h"
 #include "google_scopes.h"
 #include "fnPassword.h"
 #include "fnSession.h"
@@ -1159,10 +1161,6 @@ int fnHttpService::get_handler_shorturl(mg_connection *c, mg_http_message *hm)
 
 // ─── Google Drive OAuth2 relay handlers ──────────────────────────────────────
 
-#define GDRIVE_CLIENT_ID          "197927610161-me037pnh65lh9g8cad6fg62ifni9fik0.apps.googleusercontent.com"
-#define GDRIVE_RELAY_REDIRECT_URI "https://auth.fujinet.online/gdrive-callback"
-#define GDRIVE_RELAY_CODE_URL     "https://auth.fujinet.online/gdrive-code?state="
-
 static std::string gdrive_auth_state;
 
 static std::string gdrive_pct_encode(const std::string &s)
@@ -1192,6 +1190,33 @@ static std::string gdrive_do_get(const std::string &url)
     return body;
 }
 
+// POST a form; returns the body whatever the status, so Google's error JSON
+// reaches the caller.
+static std::string gdrive_do_post(const std::string &url, const std::string &body, int &status)
+{
+    mgHttpClient http;
+    if (!http.begin(url)) return "";
+    http.set_header("Content-Type", "application/x-www-form-urlencoded");
+    status = http.POST(body.data(), (int)body.size());
+    std::string out;
+    uint8_t buf[512]; int n;
+    while ((n = http.read(buf, sizeof(buf))) > 0) out.append((char *)buf, n);
+    if (status < 200 || status >= 300)
+        Debug_printf("gdrive_do_post: HTTP %d: %s\n", status, out.c_str());
+    return out;
+}
+
+int fnHttpService::get_handler_hotsync_status(mg_connection *c, mg_http_message *hm)
+{
+    char fetch[4] = {};
+    mg_http_get_var(&hm->query, "fetch", fetch, sizeof(fetch));
+    if (fetch[0] == '1' && fnHTTPD.hotsync)
+        fnHTTPD.hotsync->fetch_calendar_now();
+    std::string json = fnHTTPD.hotsync_status_json();
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", json.c_str());
+    return 0;
+}
+
 int fnHttpService::get_handler_gdrive_auth(mg_connection *c, mg_http_message *)
 {
     char state[16];
@@ -1204,14 +1229,15 @@ int fnHttpService::get_handler_gdrive_auth(mg_connection *c, mg_http_message *)
         "?response_type=code"
         "&access_type=offline"
         "&prompt=consent"
-        "&client_id="    + gdrive_pct_encode(GDRIVE_CLIENT_ID) +
-        "&redirect_uri=" + gdrive_pct_encode(GDRIVE_RELAY_REDIRECT_URI) +
+        "&client_id="    + gdrive_pct_encode(Config.get_gdrive_client_id()) +
+        "&redirect_uri=" + gdrive_pct_encode(google_redirect_uri()) +
         "&scope="        + gdrive_pct_encode(GOOGLE_OAUTH_SCOPES) +
         "&state="        + std::string(state);
 
     cJSON *out = cJSON_CreateObject();
     cJSON_AddStringToObject(out, "auth_url", auth_url.c_str());
     cJSON_AddStringToObject(out, "state",    state);
+    cJSON_AddStringToObject(out, "mode",     google_direct() ? "paste" : "relay");
     char *s = cJSON_PrintUnformatted(out);
     cJSON_Delete(out);
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", s);
@@ -1239,8 +1265,28 @@ int fnHttpService::get_handler_gdrive_poll(mg_connection *c, mg_http_message *hm
         return 0;
     }
 
-    std::string relay_url = std::string(GDRIVE_RELAY_CODE_URL) + state;
-    std::string relay_body = gdrive_do_get(relay_url);
+    std::string relay_body;
+    if (google_direct())
+    {
+        // The user pasted the code Google sent to the loopback address.
+        char code[512] = {};
+        mg_http_get_var(&hm->query, "code", code, sizeof(code));
+        if (!code[0]) {
+            send_json("pending");
+            return 0;
+        }
+        int status = 0;
+        relay_body = gdrive_do_post(GOOGLE_TOKEN_URL, google_code_body(code), status);
+        if (relay_body.empty()) {
+            send_json("error", ("Google answered HTTP " + std::to_string(status)).c_str());
+            return 0;
+        }
+    }
+    else
+    {
+        std::string relay_url = Config.get_gdrive_relay() + "/gdrive-code?state=" + state;
+        relay_body = gdrive_do_get(relay_url);
+    }
 
     if (relay_body.empty()) {
         send_json("error", "relay unreachable");
@@ -1264,9 +1310,9 @@ int fnHttpService::get_handler_gdrive_poll(mg_connection *c, mg_http_message *hm
         cJSON_Delete(rj); gdrive_auth_state.clear(); send_json("expired"); return 0;
     }
     if (error_node && cJSON_IsString(error_node)) {
-        const char *msg = error_node->valuestring;
-        Debug_printf("gdrive-poll: relay returned error: %s\n", msg);
-        cJSON_Delete(rj); gdrive_auth_state.clear(); send_json("error", msg); return 0;
+        std::string msg = error_node->valuestring; // copied: rj is freed below
+        Debug_printf("gdrive-poll: relay returned error: %s\n", msg.c_str());
+        cJSON_Delete(rj); gdrive_auth_state.clear(); send_json("error", msg.c_str()); return 0;
     }
     if (!at_node || !cJSON_IsString(at_node)) {
         cJSON_Delete(rj); send_json("pending"); return 0;
@@ -1370,9 +1416,9 @@ int fnHttpService::get_handler_onedrive_poll(mg_connection *c, mg_http_message *
         cJSON_Delete(rj); onedrive_auth_state.clear(); send_json("expired"); return 0;
     }
     if (error_node && cJSON_IsString(error_node)) {
-        const char *msg = error_node->valuestring;
-        Debug_printf("onedrive-poll: relay returned error: %s\n", msg);
-        cJSON_Delete(rj); onedrive_auth_state.clear(); send_json("error", msg); return 0;
+        std::string msg = error_node->valuestring; // copied: rj is freed below
+        Debug_printf("onedrive-poll: relay returned error: %s\n", msg.c_str());
+        cJSON_Delete(rj); onedrive_auth_state.clear(); send_json("error", msg.c_str()); return 0;
     }
     if (!at_node || !cJSON_IsString(at_node)) {
         cJSON_Delete(rj); send_json("pending"); return 0;
@@ -1833,6 +1879,10 @@ void fnHttpService::cb(struct mg_connection *c, int ev, void *ev_data)
         else if (mg_match(hm->uri, mg_str("/gdrive-poll"), NULL))
         {
             get_handler_gdrive_poll(c, hm);
+        }
+        else if (mg_match(hm->uri, mg_str("/hotsync-status"), NULL))
+        {
+            get_handler_hotsync_status(c, hm);
         }
         else if (mg_match(hm->uri, mg_str("/onedrive-auth"), NULL))
         {

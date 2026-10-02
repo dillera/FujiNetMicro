@@ -231,6 +231,9 @@ hr {
 .settings .settings-content {
     grid-area: c;
     padding: 1rem 0;
+    /* Without it a long word or URL widens the grid past the panel. */
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .settings .settings-content .action-link {
@@ -300,7 +303,9 @@ hr {
     border: 1px solid rgba(0, 0, 0, 0.2);
     height: 2rem;
     line-height: 1.9rem;
-    width: 5rem;
+    min-width: 5rem;
+    padding: 0 1rem;
+    margin: 0.25rem;
     border-radius: 1.5rem;
     background: #999;
     color: #fff;
@@ -386,6 +391,7 @@ hr {
 .settings .settings-text {
     text-align: center;
     padding: 0.5rem 1rem 0;
+    overflow-wrap: anywhere;
 }
 
 .radio-container .r-config-boot-mode {

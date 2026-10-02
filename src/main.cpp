@@ -345,7 +345,10 @@ void main_setup(int argc, char *argv[])
 
     // After the bus is set up, since a cradle may share its port.
     if (Config.get_hotsync_enabled() && fnSDFAT.running())
+    {
         hotsync.start(hotsync_config_from(Config), fnSDFAT, hotsync_bus_port());
+        fnHTTPD.hotsync = &hotsync;
+    }
 
 #ifdef ESP_PLATFORM
   #ifdef DEBUG

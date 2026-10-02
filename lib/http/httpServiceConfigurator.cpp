@@ -437,6 +437,52 @@ void fnHttpServiceConfigurator::config_cpm_enabled(std::string cpm_enabled)
     Config.save();
 }
 
+// The Google Account form's own-client fields; "default" returns to the
+// project's client. Changing client drops the grant.
+// A line break would start a new line, or section, of fnconfig.ini.
+static bool one_line(const std::string &value)
+{
+    return value.find_first_of("\r\n") == std::string::npos;
+}
+
+void fnHttpServiceConfigurator::config_gdrive_client(const std::string &key, const std::string &value)
+{
+    if (!one_line(value))
+        return;
+    bool reset = strcasecmp(value.c_str(), "default") == 0;
+    if (key == "gdrive_client_id")
+        Config.store_gdrive_client(reset ? "" : value, reset ? "" : Config.get_gdrive_client_secret());
+    else if (key == "gdrive_client_secret")
+        Config.store_gdrive_client(reset ? "" : Config.get_gdrive_client_id(), reset ? "" : value);
+    Config.save();
+}
+
+// The [HotSync] fields of the Palm HotSync form. An empty field is never
+// posted, so "off" clears the calendar.
+void fnHttpServiceConfigurator::config_hotsync(const std::string &key, const std::string &value)
+{
+    if (!one_line(value))
+        return;
+    if (key == "hotsync_enabled")
+        Config.store_hotsync_enabled(atoi(value.c_str()) != 0);
+    else if (key == "hotsync_user")
+        Config.store_hotsync_user(value);
+    else if (key == "hotsync_backup" && (value == "none" || value == "flagged" || value == "all"))
+        Config.store_hotsync_backup(value);
+    else if (key == "hotsync_calendar")
+        Config.store_hotsync_calendar(strcasecmp(value.c_str(), "off") == 0 ? "" : value);
+    else if (key == "hotsync_calendar_days_back" || key == "hotsync_calendar_days_ahead")
+    {
+        int days = atoi(value.c_str());
+        if (days < 0 || days > 366)
+            return;
+        bool back = key == "hotsync_calendar_days_back";
+        Config.store_hotsync_calendar_days(back ? days : Config.get_hotsync_calendar_days_back(),
+                                           back ? Config.get_hotsync_calendar_days_ahead() : days);
+    }
+    Config.save();
+}
+
 void fnHttpServiceConfigurator::config_cpm_ccp(std::string cpm_ccp)
 {
     // Use $ as a flag to reset to default CCP since empty field never gets to here
@@ -722,6 +768,14 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
         else if (i->first.compare("cpm_ccp") == 0)
         {
             config_cpm_ccp(i->second);
+        }
+        else if (i->first == "gdrive_client_id" || i->first == "gdrive_client_secret")
+        {
+            config_gdrive_client(i->first, i->second);
+        }
+        else if (i->first.compare(0, 8, "hotsync_") == 0)
+        {
+            config_hotsync(i->first, i->second);
         }
         else if (i->first.compare("alt_cfg") == 0)
         {

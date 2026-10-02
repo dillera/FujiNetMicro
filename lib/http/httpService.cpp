@@ -17,6 +17,8 @@
 
 #include "fnSystem.h"
 #include "fnConfig.h"
+#include "google_oauth.h"
+#include "HotSyncService.h"
 #include "google_scopes.h"
 #include "fnPassword.h"
 #include "fnSession.h"
@@ -34,6 +36,7 @@
 #include "fnFsSD.h"
 #include "fujiDevice.h"
 #include "utils.h"
+#include "string_utils.h"
 
 #ifdef ESP_PLATFORM
 #include "esp_random.h"
@@ -1581,20 +1584,10 @@ esp_err_t fnHttpService::post_handler_clipboard_restore(httpd_req_t *req)
 
 // ─── Google Drive OAuth2 relay-based authorization-code-flow handlers ────────
 //
-// The FujiNet project registers ONE Google OAuth2 "Desktop application" client.
-// Its client_id is public and baked in here.  PKCE (RFC 7636) is used so no
-// client_secret is ever needed on the device.
-//
-// Every FujiNet user registers the same relay redirect URI in their copy of
-// the shared OAuth client:
-//   https://auth.fujinet.online/gdrive-callback
-//
-// FujiNet project's Web application OAuth2 client ID.
-// The client_secret lives on the relay server — never in firmware.
-#define GDRIVE_CLIENT_ID          "197927610161-me037pnh65lh9g8cad6fg62ifni9fik0.apps.googleusercontent.com"
-#define GDRIVE_RELAY_REDIRECT_URI "https://auth.fujinet.online/gdrive-callback"
-#define GDRIVE_RELAY_CODE_URL     "https://auth.fujinet.online/gdrive-code?state="
-#define GDRIVE_RELAY_REFRESH_URL  "https://auth.fujinet.online/gdrive-refresh"
+// The OAuth client ID and the relay come from [GoogleDrive] client_id and
+// relay, defaulting to the FujiNet project's (GOOGLE_DEFAULT_* in fnConfig.h).
+// The client's secret lives on the relay, never in firmware; Google redirects
+// to <relay>/gdrive-callback. tools/gdrive-relay runs a relay of your own.
 
 static std::string gdrive_auth_state;
 
@@ -1702,14 +1695,15 @@ esp_err_t fnHttpService::get_handler_gdrive_auth(httpd_req_t *req)
         "?response_type=code"
         "&access_type=offline"
         "&prompt=consent"
-        "&client_id="    + gdrive_pct_encode(GDRIVE_CLIENT_ID) +
-        "&redirect_uri=" + gdrive_pct_encode(GDRIVE_RELAY_REDIRECT_URI) +
+        "&client_id="    + gdrive_pct_encode(Config.get_gdrive_client_id()) +
+        "&redirect_uri=" + gdrive_pct_encode(google_redirect_uri()) +
         "&scope="        + gdrive_pct_encode(GOOGLE_OAUTH_SCOPES) +
         "&state="        + std::string(state);
 
     cJSON *out = cJSON_CreateObject();
     cJSON_AddStringToObject(out, "auth_url", auth_url.c_str());
     cJSON_AddStringToObject(out, "state",    state);
+    cJSON_AddStringToObject(out, "mode",     google_direct() ? "paste" : "relay");
     char *s = cJSON_PrintUnformatted(out);
     cJSON_Delete(out);
     httpd_resp_set_type(req, "application/json");
@@ -1754,14 +1748,39 @@ esp_err_t fnHttpService::get_handler_gdrive_poll(httpd_req_t *req)
     httpd_query_key_value(qbuf.c_str(), "state", state, sizeof(state));
 
     if (!state[0] || gdrive_auth_state.empty() || std::string(state) != gdrive_auth_state) {
-        send_json("error", "state mismatch");
+        Debug_printf("gdrive-poll: state mismatch\n");
+        send_json("error", "state mismatch - click Authorize again");
         return ESP_OK;
     }
 
-    // Poll the relay for the finished tokens (relay does the exchange).
-    std::string relay_url = std::string(GDRIVE_RELAY_CODE_URL) + state;
     std::string relay_body;
-    int relay_status = gdrive_do_get(relay_url.c_str(), relay_body);
+    int relay_status;
+    if (google_direct())
+    {
+        // The user pasted the code Google sent to the loopback address.
+        char code[512] = {};
+        httpd_query_key_value(qbuf.c_str(), "code", code, sizeof(code));
+        std::string decoded = mstr::urlDecode(code);
+        if (decoded.empty()) {
+            send_json("pending");
+            return ESP_OK;
+        }
+        relay_status = gdrive_do_post(GOOGLE_TOKEN_URL, google_code_body(decoded).c_str(), relay_body);
+        Debug_printf("gdrive-poll: Google token exchange: HTTP %d, %u bytes\n", relay_status,
+                     (unsigned)relay_body.size());
+        if (relay_status != 200)
+            Debug_printf("gdrive-poll: Google says: %s\n", relay_body.c_str());
+        if (relay_body.empty() && relay_status > 0) {
+            send_json("error", ("Google answered HTTP " + std::to_string(relay_status)).c_str());
+            return ESP_OK;
+        }
+    }
+    else
+    {
+        // Poll the relay for the finished tokens (relay does the exchange).
+        std::string relay_url = Config.get_gdrive_relay() + "/gdrive-code?state=" + state;
+        relay_status = gdrive_do_get(relay_url.c_str(), relay_body);
+    }
 
     if (relay_status < 0) {
         send_json("error", "relay unreachable");
@@ -1790,11 +1809,11 @@ esp_err_t fnHttpService::get_handler_gdrive_poll(httpd_req_t *req)
         return ESP_OK;
     }
     if (error_node && cJSON_IsString(error_node)) {
-        const char *msg = error_node->valuestring;
-        Debug_printf("gdrive-poll: relay returned error: %s\n", msg);
+        std::string msg = error_node->valuestring; // copied: rj is freed below
+        Debug_printf("gdrive-poll: relay returned error: %s\n", msg.c_str());
         cJSON_Delete(rj);
         gdrive_auth_state.clear();
-        send_json("error", msg);
+        send_json("error", msg.c_str());
         return ESP_OK;
     }
     if (!at_node || !cJSON_IsString(at_node)) {
@@ -1815,6 +1834,28 @@ esp_err_t fnHttpService::get_handler_gdrive_poll(httpd_req_t *req)
     cJSON_Delete(rj);
 
     send_json("authorized");
+    return ESP_OK;
+}
+
+/**
+ * GET /hotsync-status[?fetch=1]
+ *
+ * The HotSync panel's live line: the calendar fetch and the last sync.
+ * fetch=1 asks the service to fetch the calendar now.
+ */
+esp_err_t fnHttpService::get_handler_hotsync_status(httpd_req_t *req)
+{
+    size_t qlen = httpd_req_get_url_query_len(req) + 1;
+    std::string qbuf(qlen, '\0');
+    httpd_req_get_url_query_str(req, &qbuf[0], qlen);
+    char fetch[4] = {};
+    httpd_query_key_value(qbuf.c_str(), "fetch", fetch, sizeof(fetch));
+    if (fetch[0] == '1' && fnHTTPD.hotsync)
+        fnHTTPD.hotsync->fetch_calendar_now();
+
+    std::string json = fnHTTPD.hotsync_status_json();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json.c_str(), json.size());
     return ESP_OK;
 }
 
@@ -1935,11 +1976,11 @@ esp_err_t fnHttpService::get_handler_onedrive_poll(httpd_req_t *req)
         return ESP_OK;
     }
     if (error_node && cJSON_IsString(error_node)) {
-        const char *msg = error_node->valuestring;
-        Debug_printf("onedrive-poll: relay returned error: %s\n", msg);
+        std::string msg = error_node->valuestring; // copied: rj is freed below
+        Debug_printf("onedrive-poll: relay returned error: %s\n", msg.c_str());
         cJSON_Delete(rj);
         onedrive_auth_state.clear();
-        send_json("error", msg);
+        send_json("error", msg.c_str());
         return ESP_OK;
     }
     if (!at_node || !cJSON_IsString(at_node)) {
@@ -2187,6 +2228,13 @@ httpd_handle_t fnHttpService::start_server(serverstate &state)
         {.uri = "/files",
          .method = HTTP_GET,
          .handler = get_handler_files,
+         .user_ctx = NULL,
+         .is_websocket = false,
+         .handle_ws_control_frames = false,
+         .supported_subprotocol = nullptr},
+        {.uri = "/hotsync-status",
+         .method = HTTP_GET,
+         .handler = get_handler_hotsync_status,
          .user_ctx = NULL,
          .is_websocket = false,
          .handle_ws_control_frames = false,

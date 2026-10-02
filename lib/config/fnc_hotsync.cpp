@@ -31,11 +31,34 @@ void fnConfig::store_hotsync_backup(const std::string &backup)
     _dirty = true;
 }
 
+void fnConfig::store_hotsync_calendar(const std::string &calendar)
+{
+    if (_hotsync.calendar == calendar)
+        return;
+    _hotsync.calendar = calendar;
+    _dirty = true;
+}
+
+void fnConfig::store_hotsync_calendar_days(int back, int ahead)
+{
+    if (_hotsync.calendar_days_back == back && _hotsync.calendar_days_ahead == ahead)
+        return;
+    _hotsync.calendar_days_back = back;
+    _hotsync.calendar_days_ahead = ahead;
+    _dirty = true;
+}
+
 // A port of 0 turns that listener off; anything unparseable keeps the default.
 static int parse_port(const std::string &value, int fallback)
 {
     int port = atoi(value.c_str());
     return (port < 0 || port > 65535 || (port == 0 && value != "0")) ? fallback : port;
+}
+
+static int parse_days(const std::string &value, int fallback)
+{
+    int days = atoi(value.c_str());
+    return (days < 0 || days > 366 || (days == 0 && value != "0")) ? fallback : days;
 }
 
 void fnConfig::_read_section_hotsync(std::stringstream &ss)
@@ -61,5 +84,11 @@ void fnConfig::_read_section_hotsync(std::stringstream &ss)
             _hotsync.emulator_port = parse_port(value, _hotsync.emulator_port);
         else if (strcasecmp(name.c_str(), "serial_port") == 0)
             _hotsync.serial_port = value;
+        else if (strcasecmp(name.c_str(), "calendar") == 0)
+            _hotsync.calendar = value;
+        else if (strcasecmp(name.c_str(), "calendar_days_back") == 0)
+            _hotsync.calendar_days_back = parse_days(value, _hotsync.calendar_days_back);
+        else if (strcasecmp(name.c_str(), "calendar_days_ahead") == 0)
+            _hotsync.calendar_days_ahead = parse_days(value, _hotsync.calendar_days_ahead);
     }
 }

@@ -174,6 +174,9 @@ set(SOURCES src/main.cpp
     lib/hotsync/DlpClient.h lib/hotsync/DlpClient.cpp
     lib/hotsync/PalmDatabase.h lib/hotsync/PalmDatabase.cpp
     lib/hotsync/HotSyncSession.h lib/hotsync/HotSyncSession.cpp
+    lib/hotsync/Datebook.h lib/hotsync/Datebook.cpp
+    lib/hotsync/DatebookConduit.h lib/hotsync/DatebookConduit.cpp
+    lib/hotsync/HotSyncNetCalendar.h lib/hotsync/HotSyncNetCalendar.cpp
     lib/hotsync/HotSyncFsStorage.h lib/hotsync/HotSyncFsStorage.cpp
     lib/hotsync/HotSyncLinks.h lib/hotsync/HotSyncLinks.cpp
     lib/hotsync/HotSyncService.h lib/hotsync/HotSyncService.cpp
@@ -195,6 +198,7 @@ set(SOURCES src/main.cpp
     lib/webdav/WebDAV.h lib/webdav/WebDAV.cpp
     lib/webdav/IndexParser.h lib/webdav/IndexParser.cpp
     lib/http/httpService.h lib/http/mgHttpService.cpp
+    lib/http/hotsyncStatus.cpp
     lib/http/google_scopes.h
     lib/http/httpServiceParser.h lib/http/httpServiceParser.cpp
     lib/http/httpServiceConfigurator.h lib/http/httpServiceConfigurator.cpp

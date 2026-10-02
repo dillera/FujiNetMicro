@@ -165,6 +165,12 @@ void fnConfig::save()
     ss << "refresh_token=" << _gdrive.refresh_token << LINETERM;
     ss << "access_token=" << _gdrive.access_token << LINETERM;
     ss << "token_expiry=" << _gdrive.token_expiry << LINETERM;
+    if (_gdrive.client_id != GOOGLE_DEFAULT_CLIENT_ID)
+        ss << "client_id=" << _gdrive.client_id << LINETERM;
+    if (!_gdrive.client_secret.empty())
+        ss << "client_secret=" << _gdrive.client_secret << LINETERM;
+    if (_gdrive.relay != GOOGLE_DEFAULT_RELAY)
+        ss << "relay=" << _gdrive.relay << LINETERM;
 
     // S3 (Amazon S3 / S3-compatible object storage)
     ss << LINETERM << "[S3]" << LINETERM;
@@ -214,6 +220,9 @@ void fnConfig::save()
     ss << "netsync_port=" << _hotsync.netsync_port << LINETERM;
     ss << "emulator_port=" << _hotsync.emulator_port << LINETERM;
     ss << "serial_port=" << _hotsync.serial_port << LINETERM;
+    ss << "calendar=" << _hotsync.calendar << LINETERM;
+    ss << "calendar_days_back=" << _hotsync.calendar_days_back << LINETERM;
+    ss << "calendar_days_ahead=" << _hotsync.calendar_days_ahead << LINETERM;
 
 #ifndef ESP_PLATFORM
     // SERIAL

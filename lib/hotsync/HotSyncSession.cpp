@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 
 // Databases every device regenerates; backing them up only wastes time.
 static const char *const SKIP_BACKUP[] = {"Unsaved Preferences"};
@@ -46,8 +47,12 @@ HotSyncReport HotSyncSession::run()
     DlpError err = identify_user();
     if (err == DlpError::NONE)
         err = _dlp.open_conduit();
+    if (err == DlpError::NONE && _options.calendar != nullptr)
+        err = read_palm_zone();
     if (err == DlpError::NONE)
         err = install_pending();
+    if (err == DlpError::NONE && _options.calendar != nullptr)
+        err = sync_datebook();
     if (err == DlpError::NONE)
         err = backup_databases();
     if (err == DlpError::NONE)
@@ -163,6 +168,58 @@ DlpError HotSyncSession::write_contents(uint8_t handle, const PalmDatabase &db)
     for (size_t i = 0; err == DlpError::NONE && i < db.records.size(); ++i)
         err = _dlp.write_record(handle, db.records[i]);
     return err;
+}
+
+// The Palm's zone, from its clock, when FujiNet has none configured. Read
+// before installing, which can take minutes, while utc_now is still current.
+DlpError HotSyncSession::read_palm_zone()
+{
+    if (!_options.timezone.empty() && _palm_tz.parse(_options.timezone))
+        return DlpError::NONE;
+    _palm_tz = fn_time::PosixTz();
+    DlpDateTime palm;
+    DlpError err = _dlp.get_sys_date_time(palm);
+    if (is_fatal(err))
+        return err;
+    if (err == DlpError::NONE && _options.utc_now != 0)
+    {
+        int64_t local = fn_time::fn_timegm(palm.year, palm.month, palm.day, palm.hour,
+                                           palm.minute, palm.second);
+        _palm_tz = datebook_zone_from_offset(static_cast<int>(local - _options.utc_now));
+    }
+    return DlpError::NONE;
+}
+
+DlpError HotSyncSession::sync_datebook()
+{
+    DatebookSyncOptions options;
+    options.from = _options.calendar_from;
+    options.to = _options.calendar_to;
+    options.tz = _palm_tz;
+
+    // Two Palms can share a user name, but not a user ID.
+    char id[12];
+    std::snprintf(id, sizeof(id), "-%08lx", static_cast<unsigned long>(_user.user_id));
+    DatebookConduit conduit(_dlp, _storage, hotsync_safe_name(_user.user_name) + id);
+    DatebookSyncReport &r = _report.datebook;
+    DlpError err = conduit.sync(*_options.calendar, options, r);
+    if (is_fatal(err))
+        return err;
+    if (err == DlpError::NOT_FOUND)
+    {
+        // The Date Book app creates its database the first time it runs.
+        log("No Date Book yet: open Date Book once, then HotSync again");
+        return DlpError::NONE;
+    }
+    if (err != DlpError::NONE)
+    {
+        log(std::string("Date Book not synced: ") + dlp_error_name(err));
+        return DlpError::NONE;
+    }
+    _report.calendar_synced = true;
+    log("Date Book: " + std::to_string(r.added) + " added, " + std::to_string(r.updated) +
+        " updated, " + std::to_string(r.deleted) + " removed");
+    return DlpError::NONE;
 }
 
 DlpError HotSyncSession::backup_databases()

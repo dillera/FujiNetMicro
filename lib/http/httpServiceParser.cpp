@@ -124,9 +124,16 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         FN_APETIME_ENABLED,
         FN_CPM_ENABLED,
         FN_CPM_CCP,
+        FN_HOTSYNC_ENABLED,
+        FN_HOTSYNC_USER,
+        FN_HOTSYNC_BACKUP,
+        FN_HOTSYNC_CALENDAR,
+        FN_HOTSYNC_DAYS_BACK,
+        FN_HOTSYNC_DAYS_AHEAD,
         FN_ALT_CFG,
         FN_PCLINK_ENABLED,
         FN_GDRIVE_CONNECTED,
+        FN_GDRIVE_CLIENT_ID,
         FN_ONEDRIVE_CONNECTED,
         FN_PASSWORD_SET,
         FN_APPKEY_COUNT,
@@ -237,9 +244,16 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         "FN_APETIME_ENABLED",
         "FN_CPM_ENABLED",
         "FN_CPM_CCP",
+        "FN_HOTSYNC_ENABLED",
+        "FN_HOTSYNC_USER",
+        "FN_HOTSYNC_BACKUP",
+        "FN_HOTSYNC_CALENDAR",
+        "FN_HOTSYNC_DAYS_BACK",
+        "FN_HOTSYNC_DAYS_AHEAD",
         "FN_ALT_CFG",
         "FN_PCLINK_ENABLED",
         "FN_GDRIVE_CONNECTED",
+        "FN_GDRIVE_CLIENT_ID",
         "FN_ONEDRIVE_CONNECTED",
         "FN_PASSWORD_SET",
         "FN_APPKEY_COUNT",
@@ -533,10 +547,33 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_CPM_CCP:
         resultstream << Config.get_ccp_filename();
         break;
+    case FN_HOTSYNC_ENABLED:
+        resultstream << Config.get_hotsync_enabled();
+        break;
+    case FN_HOTSYNC_USER:
+        resultstream << Config.get_hotsync_user();
+        break;
+    case FN_HOTSYNC_BACKUP:
+        resultstream << Config.get_hotsync_backup();
+        break;
+    case FN_HOTSYNC_CALENDAR:
+        resultstream << Config.get_hotsync_calendar();
+        break;
+    case FN_HOTSYNC_DAYS_BACK:
+        resultstream << Config.get_hotsync_calendar_days_back();
+        break;
+    case FN_HOTSYNC_DAYS_AHEAD:
+        resultstream << Config.get_hotsync_calendar_days_ahead();
+        break;
     case FN_ALT_CFG:
         resultstream << Config.get_config_filename();
         break;
 
+    case FN_GDRIVE_CLIENT_ID:
+        // Blank while the project's client is in use.
+        if (Config.get_gdrive_client_id() != GOOGLE_DEFAULT_CLIENT_ID)
+            resultstream << Config.get_gdrive_client_id();
+        break;
     case FN_GDRIVE_CONNECTED:
         resultstream << (Config.get_gdrive_refresh_token().empty() ? "0" : "1");
         break;
