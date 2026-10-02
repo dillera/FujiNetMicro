@@ -1,0 +1,98 @@
+#ifdef BUILD_ATARI
+
+#define CCP_INTERNAL
+
+#include "siocpm.h"
+
+#include "fnSystem.h"
+#include "fnWiFi.h"
+#include "fujiDevice.h"
+#include "fnFS.h"
+#include "fnFsSD.h"
+#include "debug.h"
+
+#include "../runcpm/globals.h"
+#include "../runcpm/abstraction_fujinet.h" // FN_CPM_LINK defined here (one of fnUartBUS, fnSioCom)
+#include "../runcpm/ram.h"     // ram.h - Implements the RAM
+#include "../runcpm/console.h" // console.h - implements console.
+#include "../runcpm/cpu.h"     // cpu.h - Implements the emulated CPU
+#include "../runcpm/disk.h"    // disk.h - Defines all the disk access abstraction functions
+#include "../runcpm/host.h"    // host.h - Custom host-specific BDOS call
+#include "../runcpm/cpm.h"     // cpm.h - Defines the CPM structures and calls
+#ifdef CCP_INTERNAL
+# include "../runcpm/ccp.h" // ccp.h - Defines a simple internal CCP
+#endif
+
+
+void sioCPM::sio_status(const FujiSIOPacket &packet)
+{
+    // Nothing to do here
+    return;
+}
+
+void sioCPM::sio_handle_cpm()
+{
+    _puts(CCPHEAD);
+    _PatchCPM();
+    Status = 0;
+#ifdef CCP_INTERNAL
+    _ccp();
+#else
+    if (!_sys_exists((uint8 *)CCPname))
+    {
+        _puts("Unable to load CP/M CCP.\r\nCPU halted.\r\n");
+        break;
+    }
+    _RamLoad((uint8 *)CCPname, CCPaddr);    // Loads the CCP binary file into memory
+    Z80reset();                             // Resets the Z80 CPU
+    SET_LOW_REGISTER(BC, _RamRead(0x0004)); // Sets C to the current drive/user
+    PC = CCPaddr;                           // Sets CP/M application jump point
+    Z80run();                               // Starts simulation
+#endif
+    if (Status == 1) // This is set by a call to BIOS 0 - ends CP/M
+    {
+        cpmActive = false;
+        free(RAM);
+        RAM = NULL;
+    }
+}
+
+success_is_true sioCPM::init_cpm(int baud)
+{
+    SYSTEM_BUS.setBaudrate(baud);
+    Status = Debug = 0;
+    Break = Step = -1;
+    // A repeated CPM_INIT without a BIOS-0 exit would otherwise leak the old 64K.
+    free(RAM);
+    RAM = (uint8_t *)malloc(MEMSIZE);
+    if (RAM == NULL)
+    {
+        Debug_printv("could not allocate 64K CP/M RAM, free heap: %lu", fnSystem.get_free_heap_size());
+        RETURN_ERROR_AS_FALSE();
+    }
+    memset(RAM, 0, MEMSIZE);
+    memset(filename, 0, sizeof(filename));
+    memset(newname, 0, sizeof(newname));
+    memset(fcbname, 0, sizeof(fcbname));
+    memset(pattern, 0, sizeof(pattern));
+    RETURN_SUCCESS_AS_TRUE();
+}
+
+void sioCPM::sio_process(const FujiSIOPacket &packet)
+{
+    switch (packet.command())
+    {
+    case CMD::CPM_INIT:
+        SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET);
+        fnSystem.delay(10);
+        SYSTEM_BUS.transaction_success();
+        fnSystem.delay(5000);
+        cpmActive = init_cpm(9600).is_success();
+        break;
+    default:
+        SYSTEM_BUS.transaction_error();
+        break;
+    }
+}
+
+#endif /* BUILD_ATARI */

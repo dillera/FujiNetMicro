@@ -1,0 +1,854 @@
+
+#include "httpServiceParser.h"
+
+#include <sstream>
+
+#include "../../include/debug.h"
+
+#include "fnSystem.h"
+#include "fnConfig.h"
+#include "fnPassword.h"
+#include "fnWiFi.h"
+#include "fsFlash.h"
+#include "httpService.h"
+#include "appKeyManager.h"
+#include "fujiDevice.h"
+#ifdef BUILD_ATARI
+#include "sio/sioFuji.h"
+#endif /* BUILD_ATARI */
+#ifdef BUILD_MAC
+#include <esp_heap_caps.h>
+#include <cJSON.h>
+#endif /* BUILD_MAC */
+
+using namespace std;
+
+#define MAX_PRINTER_LIST_BUFFER (2048)
+
+#ifdef BUILD_MAC
+/* Mac mount list data: each slot's config next to what is actually loaded,
+   the hosts, and PSRAM. "</" is escaped since this lands in a <script> block. */
+string fnHttpServiceParser::mac_slots_json()
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *slots = cJSON_AddArrayToObject(root, "slots");
+
+    for (int i = 0; i < MAX_DISK_DEVICES; i++)
+    {
+        cJSON *s = cJSON_CreateObject();
+        cJSON_AddNumberToObject(s, "n", i + 1);
+        cJSON_AddStringToObject(s, "role", i < MAC_DCD_SLOTS ? "hd20" : (i == MAC_FLOPPY_SLOT ? "floppy" : "none"));
+
+        int hs = Config.get_mount_host_slot(i);
+        if (hs != HOST_SLOT_INVALID)
+        {
+            cJSON_AddNumberToObject(s, "hs", hs);
+            cJSON_AddStringToObject(s, "host", Config.get_host_name(hs).c_str());
+            cJSON_AddStringToObject(s, "path", Config.get_mount_path(i).c_str());
+            cJSON_AddBoolToObject(s, "rw", Config.get_mount_mode(i) != fnConfig::mount_modes::MOUNTMODE_READ);
+        }
+
+        DISK_DEVICE *dd = theFuji->get_disk_dev(i);
+        if (dd != nullptr && dd->is_loaded())
+        {
+            cJSON_AddBoolToObject(s, "loaded", true);
+            cJSON_AddBoolToObject(s, "ro", dd->readonly);
+            cJSON_AddNumberToObject(s, "blocks", dd->size_in_blocks());
+
+            const MediaTypeDCD *dcd = dd->dcd_media();
+            if (dcd != nullptr)
+            {
+                static const char *kinds[] = {"", "volume", "drive", "dc42"};
+                static const char *fs[] = {"", "MFS", "HFS"};
+                static const char *boot[] = {"", "no-system", "unblessed", "blessed", "blessed-now"};
+                cJSON_AddStringToObject(s, "kind", kinds[static_cast<int>(dcd->image_kind)]);
+                cJSON_AddStringToObject(s, "fs", fs[static_cast<int>(dcd->fs_kind)]);
+                cJSON_AddStringToObject(s, "boot", boot[static_cast<int>(dcd->boot)]);
+                cJSON_AddStringToObject(s, "vol", dcd->volume_name);
+                cJSON_AddBoolToObject(s, "truncated", dcd->truncated);
+            }
+            else
+            {
+                cJSON_AddStringToObject(s, "kind", dd->is_sector_image() ? "sector" : "moof");
+                cJSON_AddNumberToObject(s, "sides", dd->num_sides());
+            }
+
+            if (dd->has_sit_source())
+            {
+                cJSON *a = cJSON_AddObjectToObject(s, "sit");
+                cJSON_AddStringToObject(a, "inner", dd->sit_inner_filename());
+                cJSON_AddStringToObject(a, "format", dd->sit_archive_kind());
+                cJSON_AddStringToObject(a, "method", dd->sit_method_name());
+                cJSON_AddBoolToObject(a, "ndif", dd->sit_was_ndif());
+                cJSON_AddNumberToObject(a, "bytes", dd->sit_image_len());
+            }
+        }
+        cJSON_AddItemToArray(slots, s);
+    }
+
+    cJSON *hosts = cJSON_AddArrayToObject(root, "hosts");
+    for (int h = 0; h < MAX_HOSTS; h++)
+    {
+        if (Config.get_host_type(h) == fnConfig::host_types::HOSTTYPE_INVALID || Config.get_host_name(h).empty())
+            continue;
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "hs", h);
+        cJSON_AddStringToObject(o, "name", Config.get_host_name(h).c_str());
+        cJSON_AddItemToArray(hosts, o);
+    }
+
+    cJSON_AddNumberToObject(root, "psram_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    cJSON_AddNumberToObject(root, "psram_total", heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
+
+    string out;
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (json == nullptr)
+        return "{}";
+    for (const char *p = json; *p; p++)
+    {
+        if (p[0] == '<' && p[1] == '/')
+            out += "<\\";
+        else
+            out += *p;
+    }
+    cJSON_free(json);
+    return out;
+}
+#endif /* BUILD_MAC */
+
+const string fnHttpServiceParser::substitute_tag(const string &tag)
+{
+    enum tagids
+    {
+        FN_HOSTNAME = 0,
+        FN_DEVICE_NAME,
+        FN_LABEL,
+        FN_VERSION,
+        FN_IPADDRESS,
+        FN_IPMASK,
+        FN_IPGATEWAY,
+        FN_IPDNS,
+        FN_WIFISSID,
+        FN_WIFIBSSID,
+        FN_WIFIMAC,
+        FN_WIFIDETAIL,
+#ifndef ESP_PLATFORM
+        FN_UNAME,
+#endif
+        FN_SPIFFS_SIZE,
+        FN_SPIFFS_USED,
+        FN_SD_SIZE,
+        FN_SD_USED,
+        FN_UPTIME_STRING,
+        FN_UPTIME,
+        FN_CURRENTTIME,
+        FN_TIMEZONE,
+        FN_ROTATION_SOUNDS,
+        FN_NETSTREAM_HOST,
+        FN_NETSTREAM_MODE,
+        FN_NETSTREAM_REGISTER,
+        FN_HEAPSIZE,
+        FN_SYSSDK,
+        FN_SYSCPUREV,
+        FN_BUSVOLTS,
+        FN_SIO_HSINDEX,
+        FN_SIO_HSBAUD,
+        FN_PRINTER1_MODEL,
+        FN_PRINTER1_PORT,
+        FN_PLAY_RECORD,
+        FN_PULLDOWN,
+        FN_CASSETTE_ENABLED,
+        FN_CONFIG_ENABLED,
+        FN_CONFIG_NG,
+        FN_STATUS_WAIT_ENABLED,
+        FN_BOOT_MODE,
+        FN_PRINTER_ENABLED,
+        FN_MODEM_ENABLED,
+        FN_MODEM_SNIFFER_ENABLED,
+        FN_MODEM_CONNECT_DELAY_MS,
+#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
+        FN_SERIAL_PORT_BAUD,
+#endif
+#ifndef ESP_PLATFORM
+        FN_SERIAL_PORT,
+        FN_SERIAL_COMMAND,
+        FN_SERIAL_PROCEED,
+        FN_SIO_HSTEXT,
+#endif
+        FN_BOIP_ENABLED,
+        FN_BOIP_HOST,
+        FN_DRIVE1HOST,
+        FN_DRIVE2HOST,
+        FN_DRIVE3HOST,
+        FN_DRIVE4HOST,
+        FN_DRIVE5HOST,
+        FN_DRIVE6HOST,
+        FN_DRIVE7HOST,
+        FN_DRIVE8HOST,
+#ifdef BUILD_APPLE
+        FN_DRIVE9HOST,
+        FN_DRIVE10HOST,
+#endif
+        FN_DRIVE1MOUNT,
+        FN_DRIVE2MOUNT,
+        FN_DRIVE3MOUNT,
+        FN_DRIVE4MOUNT,
+        FN_DRIVE5MOUNT,
+        FN_DRIVE6MOUNT,
+        FN_DRIVE7MOUNT,
+        FN_DRIVE8MOUNT,
+#ifdef BUILD_APPLE
+        FN_DRIVE9MOUNT,
+        FN_DRIVE10MOUNT,
+#endif
+        FN_HOST1,
+        FN_HOST2,
+        FN_HOST3,
+        FN_HOST4,
+        FN_HOST5,
+        FN_HOST6,
+        FN_HOST7,
+        FN_HOST8,
+        FN_DRIVE1DEVICE,
+        FN_DRIVE2DEVICE,
+        FN_DRIVE3DEVICE,
+        FN_DRIVE4DEVICE,
+        FN_DRIVE5DEVICE,
+        FN_DRIVE6DEVICE,
+        FN_DRIVE7DEVICE,
+        FN_DRIVE8DEVICE,
+#ifdef BUILD_APPLE
+        FN_DRIVE9DEVICE,
+        FN_DRIVE10DEVICE,
+#endif
+        FN_HOST1PREFIX,
+        FN_HOST2PREFIX,
+        FN_HOST3PREFIX,
+        FN_HOST4PREFIX,
+        FN_HOST5PREFIX,
+        FN_HOST6PREFIX,
+        FN_HOST7PREFIX,
+        FN_HOST8PREFIX,
+        FN_ERRMSG,
+        FN_HARDWARE_VER,
+        FN_PRINTER_LIST,
+        FN_ENCRYPT_PASSPHRASE_ENABLED,
+        FN_APETIME_ENABLED,
+        FN_CPM_ENABLED,
+        FN_CPM_CCP,
+        FN_ALT_CFG,
+        FN_PCLINK_ENABLED,
+        FN_GDRIVE_CONNECTED,
+        FN_ONEDRIVE_CONNECTED,
+        FN_PASSWORD_SET,
+        FN_APPKEY_COUNT,
+#ifdef BUILD_MAC
+        FN_MAC_SLOTS,
+#endif
+        FN_LASTTAG
+    };
+
+    const char *tagids[FN_LASTTAG] =
+    {
+        "FN_HOSTNAME",
+        "FN_DEVICE_NAME",
+        "FN_LABEL",
+        "FN_VERSION",
+        "FN_IPADDRESS",
+        "FN_IPMASK",
+        "FN_IPGATEWAY",
+        "FN_IPDNS",
+        "FN_WIFISSID",
+        "FN_WIFIBSSID",
+        "FN_WIFIMAC",
+        "FN_WIFIDETAIL",
+#ifndef ESP_PLATFORM
+        "FN_UNAME",
+#endif
+        "FN_SPIFFS_SIZE",
+        "FN_SPIFFS_USED",
+        "FN_SD_SIZE",
+        "FN_SD_USED",
+        "FN_UPTIME_STRING",
+        "FN_UPTIME",
+        "FN_CURRENTTIME",
+        "FN_TIMEZONE",
+        "FN_ROTATION_SOUNDS",
+        "FN_NETSTREAM_HOST",
+        "FN_NETSTREAM_MODE",
+        "FN_NETSTREAM_REGISTER",
+        "FN_HEAPSIZE",
+        "FN_SYSSDK",
+        "FN_SYSCPUREV",
+        "FN_BUSVOLTS",
+        "FN_SIO_HSINDEX",
+        "FN_SIO_HSBAUD",
+        "FN_PRINTER1_MODEL",
+        "FN_PRINTER1_PORT",
+        "FN_PLAY_RECORD",
+        "FN_PULLDOWN",
+        "FN_CASSETTE_ENABLED",
+        "FN_CONFIG_ENABLED",
+        "FN_CONFIG_NG",
+        "FN_STATUS_WAIT_ENABLED",
+        "FN_BOOT_MODE",
+        "FN_PRINTER_ENABLED",
+        "FN_MODEM_ENABLED",
+        "FN_MODEM_SNIFFER_ENABLED",
+        "FN_MODEM_CONNECT_DELAY_MS",
+#if !defined(ESP_PLATFORM) || defined(BUILD_RS232)
+        "FN_SERIAL_PORT_BAUD",
+#endif
+#ifndef ESP_PLATFORM
+        "FN_SERIAL_PORT",
+        "FN_SERIAL_COMMAND",
+        "FN_SERIAL_PROCEED",
+        "FN_SIO_HSTEXT",
+#endif
+        "FN_BOIP_ENABLED",
+        "FN_BOIP_HOST",
+        "FN_DRIVE1HOST",
+        "FN_DRIVE2HOST",
+        "FN_DRIVE3HOST",
+        "FN_DRIVE4HOST",
+        "FN_DRIVE5HOST",
+        "FN_DRIVE6HOST",
+        "FN_DRIVE7HOST",
+        "FN_DRIVE8HOST",
+#ifdef BUILD_APPLE
+        "FN_DRIVE9HOST",
+        "FN_DRIVE10HOST",
+#endif
+        "FN_DRIVE1MOUNT",
+        "FN_DRIVE2MOUNT",
+        "FN_DRIVE3MOUNT",
+        "FN_DRIVE4MOUNT",
+        "FN_DRIVE5MOUNT",
+        "FN_DRIVE6MOUNT",
+        "FN_DRIVE7MOUNT",
+        "FN_DRIVE8MOUNT",
+#ifdef BUILD_APPLE
+        "FN_DRIVE9MOUNT",
+        "FN_DRIVE10MOUNT",
+#endif
+        "FN_HOST1",
+        "FN_HOST2",
+        "FN_HOST3",
+        "FN_HOST4",
+        "FN_HOST5",
+        "FN_HOST6",
+        "FN_HOST7",
+        "FN_HOST8",
+        "FN_DRIVE1DEVICE",
+        "FN_DRIVE2DEVICE",
+        "FN_DRIVE3DEVICE",
+        "FN_DRIVE4DEVICE",
+        "FN_DRIVE5DEVICE",
+        "FN_DRIVE6DEVICE",
+        "FN_DRIVE7DEVICE",
+        "FN_DRIVE8DEVICE",
+#ifdef BUILD_APPLE
+        "FN_DRIVE9DEVICE",
+        "FN_DRIVE10DEVICE",
+#endif
+        "FN_HOST1PREFIX",
+        "FN_HOST2PREFIX",
+        "FN_HOST3PREFIX",
+        "FN_HOST4PREFIX",
+        "FN_HOST5PREFIX",
+        "FN_HOST6PREFIX",
+        "FN_HOST7PREFIX",
+        "FN_HOST8PREFIX",
+        "FN_ERRMSG",
+        "FN_HARDWARE_VER",
+        "FN_PRINTER_LIST",
+        "FN_ENCRYPT_PASSPHRASE_ENABLED",
+        "FN_APETIME_ENABLED",
+        "FN_CPM_ENABLED",
+        "FN_CPM_CCP",
+        "FN_ALT_CFG",
+        "FN_PCLINK_ENABLED",
+        "FN_GDRIVE_CONNECTED",
+        "FN_ONEDRIVE_CONNECTED",
+        "FN_PASSWORD_SET",
+        "FN_APPKEY_COUNT",
+#ifdef BUILD_MAC
+        "FN_MAC_SLOTS",
+#endif
+    };
+
+    stringstream resultstream;
+
+    // Debug_printf("Substituting tag '%s'\n", tag.c_str());
+
+    int tagid;
+    for (tagid = 0; tagid < FN_LASTTAG; tagid++)
+    {
+        if (0 == tag.compare(tagids[tagid]))
+        {
+            break;
+        }
+    }
+
+    int drive_slot, host_slot;
+    char disk_id;
+#ifndef ESP_PLATFORM
+    int hsioindex;
+#endif
+
+    // Provide a replacement value
+    switch (tagid)
+    {
+    case FN_HOSTNAME:
+        resultstream << fnSystem.Net.get_hostname();
+        break;
+    case FN_DEVICE_NAME:
+        resultstream << Config.get_general_devicename();
+        break;
+    case FN_LABEL:
+        // TODO html escape
+        resultstream << Config.get_general_label();
+        break;
+    case FN_VERSION:
+        resultstream << fnSystem.get_fujinet_version();
+        break;
+    case FN_IPADDRESS:
+        resultstream << fnSystem.Net.get_ip4_address_str();
+        break;
+    case FN_IPMASK:
+        resultstream << fnSystem.Net.get_ip4_mask_str();
+        break;
+    case FN_IPGATEWAY:
+        resultstream << fnSystem.Net.get_ip4_gateway_str();
+        break;
+    case FN_IPDNS:
+        resultstream << fnSystem.Net.get_ip4_dns_str();
+        break;
+    case FN_WIFISSID:
+        resultstream << fnWiFi.get_current_ssid();
+        break;
+    case FN_WIFIBSSID:
+        resultstream << fnWiFi.get_current_bssid_str();
+        break;
+    case FN_WIFIMAC:
+        resultstream << fnWiFi.get_mac_str();
+        break;
+    case FN_WIFIDETAIL:
+        resultstream << fnWiFi.get_current_detail_str();
+        break;
+#ifndef ESP_PLATFORM
+    case FN_UNAME:
+        resultstream << fnSystem.get_uname();
+        break;
+#endif
+    case FN_SPIFFS_SIZE:
+        resultstream << fsFlash.total_bytes();
+        break;
+    case FN_SPIFFS_USED:
+        resultstream << fsFlash.used_bytes();
+        break;
+    case FN_SD_SIZE:
+        resultstream << fnSDFAT.total_bytes();
+        break;
+    case FN_SD_USED:
+        resultstream << fnSDFAT.used_bytes();
+        break;
+    case FN_UPTIME_STRING:
+        resultstream << format_uptime();
+        break;
+    case FN_UPTIME:
+        resultstream << uptime_seconds();
+        break;
+    case FN_CURRENTTIME:
+        resultstream << fnSystem.get_current_time_str();
+        break;
+    case FN_TIMEZONE:
+        resultstream << Config.get_general_timezone();
+        break;
+#ifdef BUILD_ATARI
+    case FN_APETIME_ENABLED:
+        resultstream << Config.get_apetime_enabled();
+        break;
+    case FN_PCLINK_ENABLED:
+        resultstream << Config.get_pclink_enabled();
+        break;
+#endif /* BUILD_ATARI */
+
+    case FN_ROTATION_SOUNDS:
+        resultstream << Config.get_general_rotation_sounds();
+        break;
+    case FN_NETSTREAM_HOST:
+        if (Config.get_network_netstream_port() > 0)
+            resultstream << Config.get_network_netstream_host() << ":" << Config.get_network_netstream_port();
+        else
+            resultstream << Config.get_network_netstream_host();
+        break;
+    case FN_NETSTREAM_MODE:
+        resultstream << (Config.get_network_netstream_mode() == 0 ? "udp" : "tcp");
+        break;
+    case FN_NETSTREAM_REGISTER:
+        resultstream << (Config.get_network_netstream_register() ? "1" : "0");
+        break;
+    case FN_HEAPSIZE:
+        resultstream << fnSystem.get_free_heap_size();
+        break;
+    case FN_SYSSDK:
+        resultstream << fnSystem.get_sdk_version();
+        break;
+    case FN_SYSCPUREV:
+        resultstream << fnSystem.get_cpu_rev();
+        break;
+    case FN_BUSVOLTS:
+        resultstream << ((float)fnSystem.get_sio_voltage()) / 1000.00 << "V";
+        break;
+#ifdef BUILD_ATARI
+    case FN_SIO_HSINDEX:
+        resultstream << SYSTEM_BUS.getHighSpeedIndex();
+        break;
+#ifndef ESP_PLATFORM
+    case FN_SIO_HSTEXT:
+        hsioindex = SYSTEM_BUS.getHighSpeedIndex();
+        if (hsioindex == HSIO_INVALID_INDEX)
+            resultstream << "HSIO Disabled";
+        else
+            resultstream << hsioindex;
+        break;
+#endif
+    case FN_SIO_HSBAUD:
+        resultstream << SYSTEM_BUS.getHighSpeedBaud();
+        break;
+#endif /* BUILD_ATARI */
+#if defined(BUILD_RS232) || !defined(ESP_PLATFORM)
+    case FN_SERIAL_PORT_BAUD:
+        resultstream << Config.get_serial_baud();
+        break;
+#endif /* BUILD_RS232 */
+#if !defined(ESP_PLATFORM)
+    case FN_SERIAL_PORT:
+        resultstream << Config.get_serial_port();
+        break;
+    case FN_SERIAL_COMMAND:
+        resultstream << Config.get_serial_command();
+        break;
+    case FN_SERIAL_PROCEED:
+        resultstream << Config.get_serial_proceed();
+        break;
+#endif
+    case FN_PRINTER1_MODEL:
+        {
+#ifdef BUILD_ADAM
+            adamPrinter *ap = fnPrinters.get_ptr(0);
+            if (ap != nullptr)
+                resultstream << fnPrinters.get_ptr(0)->getPrinterPtr()->modelname();
+            else
+                resultstream << "No Virtual Printer";
+#elif defined(BUILD_ATARI) || defined(BUILD_APPLE) || defined(BUILD_RS232)
+            resultstream << fnPrinters.get_ptr(0)->getPrinterPtr()->modelname();
+#endif
+        }
+        break;
+    case FN_PRINTER1_PORT:
+        {
+#ifdef BUILD_ADAM
+            adamPrinter *ap = fnPrinters.get_ptr(0);
+            if (ap != nullptr)
+                resultstream << (fnPrinters.get_port(0) + 1);
+            else
+                resultstream << "";
+#elif defined(BUILD_ATARI) || defined(BUILD_APPLE) || defined(BUILD_RS232)
+            resultstream << (fnPrinters.get_port(0) + 1);
+#endif
+        }
+        break;
+#ifdef BUILD_ATARI
+    case FN_PLAY_RECORD:
+        if (platformFuji.cassette()->get_buttons())
+            resultstream << "0 PLAY";
+        else
+            resultstream << "1 RECORD";
+        break;
+    case FN_PULLDOWN:
+        if (platformFuji.cassette()->has_pulldown())
+            resultstream << "1 Pulldown Resistor";
+        else
+            resultstream << "0 B Button Press";
+        break;
+    case FN_CASSETTE_ENABLED:
+        resultstream << Config.get_cassette_enabled();
+        break;
+    case FN_CONFIG_NG:
+        resultstream << Config.get_general_config_ng();
+        break;
+#endif /* BUILD_ATARI */
+    case FN_CONFIG_ENABLED:
+        resultstream << Config.get_general_config_enabled();
+        break;
+    case FN_STATUS_WAIT_ENABLED:
+        resultstream << Config.get_general_status_wait_enabled();
+        break;
+    case FN_BOOT_MODE:
+        resultstream << (unsigned int)Config.get_general_boot_mode();
+        break;
+    case FN_PRINTER_ENABLED:
+        resultstream << Config.get_printer_enabled();
+        break;
+    case FN_MODEM_ENABLED:
+        resultstream << Config.get_modem_enabled();
+        break;
+    case FN_MODEM_SNIFFER_ENABLED:
+        resultstream << Config.get_modem_sniffer_enabled();
+        break;
+    case FN_MODEM_CONNECT_DELAY_MS:
+        resultstream << Config.get_modem_connect_delay_ms();
+        break;
+    case FN_BOIP_ENABLED:
+        resultstream << Config.get_boip_enabled();
+        break;
+    case FN_BOIP_HOST:
+        resultstream << Config.get_boip_host();
+        if (Config.get_boip_port() != CONFIG_DEFAULT_BOIP_PORT)
+            resultstream << ":" << Config.get_boip_port();
+        break;
+    case FN_DRIVE1HOST:
+    case FN_DRIVE2HOST:
+    case FN_DRIVE3HOST:
+    case FN_DRIVE4HOST:
+    case FN_DRIVE5HOST:
+    case FN_DRIVE6HOST:
+    case FN_DRIVE7HOST:
+    case FN_DRIVE8HOST:
+#ifdef BUILD_APPLE
+    case FN_DRIVE9HOST:
+    case FN_DRIVE10HOST:
+#endif
+        /* From what host is each disk is mounted on each Drive Slot? */
+        drive_slot = tagid - FN_DRIVE1HOST;
+        host_slot = Config.get_mount_host_slot(drive_slot);
+        if (host_slot != HOST_SLOT_INVALID) {
+            resultstream << Config.get_host_name(host_slot);
+        } else {
+            resultstream << "";
+        }
+        break;
+    case FN_DRIVE1MOUNT:
+    case FN_DRIVE2MOUNT:
+    case FN_DRIVE3MOUNT:
+    case FN_DRIVE4MOUNT:
+    case FN_DRIVE5MOUNT:
+    case FN_DRIVE6MOUNT:
+    case FN_DRIVE7MOUNT:
+    case FN_DRIVE8MOUNT:
+#ifdef BUILD_APPLE
+    case FN_DRIVE9MOUNT:
+    case FN_DRIVE10MOUNT:
+#endif
+        /* What disk is mounted on each Drive Slot (and is it read-only or read-write)? */
+        drive_slot = tagid - FN_DRIVE1MOUNT;
+        host_slot = Config.get_mount_host_slot(drive_slot);
+        if (host_slot != HOST_SLOT_INVALID) {
+            resultstream << Config.get_mount_path(drive_slot);
+#ifdef BUILD_MAC
+            {
+                DISK_DEVICE *dd = theFuji->get_disk_dev(drive_slot);
+                if (dd != nullptr && dd->has_sit_source())
+                {
+                    resultstream << " -> " << dd->sit_inner_filename()
+                                 << " [" << dd->sit_archive_kind() << " / " << dd->sit_method_name()
+                                 << (dd->sit_was_ndif() ? ", NDIF" : "") << "] "
+                                 << dd->sit_image_len() << " bytes in PSRAM, "
+                                 << (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM) << " free";
+                }
+            }
+#endif
+            resultstream << " (" << (Config.get_mount_mode(drive_slot) == fnConfig::mount_modes::MOUNTMODE_READ ? "R" : "W") << ")";
+        } else {
+            resultstream << "(Empty)";
+        }
+    break;
+    case FN_HOST1:
+    case FN_HOST2:
+    case FN_HOST3:
+    case FN_HOST4:
+    case FN_HOST5:
+    case FN_HOST6:
+    case FN_HOST7:
+    case FN_HOST8:
+        /* What TNFS host is mounted on each Host Slot? */
+        host_slot = tagid - FN_HOST1;
+        if (Config.get_host_type(host_slot) != fnConfig::host_types::HOSTTYPE_INVALID) {
+            resultstream << Config.get_host_name(host_slot);
+        } else {
+            resultstream << "(Empty)";
+        }
+        break;
+    case FN_DRIVE1DEVICE:
+    case FN_DRIVE2DEVICE:
+    case FN_DRIVE3DEVICE:
+    case FN_DRIVE4DEVICE:
+    case FN_DRIVE5DEVICE:
+    case FN_DRIVE6DEVICE:
+    case FN_DRIVE7DEVICE:
+    case FN_DRIVE8DEVICE:
+#ifdef BUILD_APPLE
+    case FN_DRIVE9DEVICE:
+    case FN_DRIVE10DEVICE:
+#endif
+        /* What Dx: drive (if any rotation has occurred) does each Drive Slot currently map to? */
+        drive_slot = tagid - FN_DRIVE1DEVICE;
+        disk_id = (char) theFuji->get_disk_id(drive_slot);
+        if (disk_id > 0 && disk_id != (char) (0x31 + drive_slot)) {
+            resultstream << " (D" << disk_id << ":)";
+        }
+        break;
+    case FN_HOST1PREFIX:
+    case FN_HOST2PREFIX:
+    case FN_HOST3PREFIX:
+    case FN_HOST4PREFIX:
+    case FN_HOST5PREFIX:
+    case FN_HOST6PREFIX:
+    case FN_HOST7PREFIX:
+    case FN_HOST8PREFIX:
+        /* What directory prefix is set right now
+           for the TNFS host mounted on each Host Slot? */
+        host_slot = tagid - FN_HOST1PREFIX;
+        if (Config.get_host_type(host_slot) != fnConfig::host_types::HOSTTYPE_INVALID) {
+            resultstream << theFuji->get_host_prefix(host_slot);
+        } else {
+            resultstream << "";
+        }
+        break;
+    case FN_ERRMSG:
+        resultstream << fnHTTPD.getErrMsg();
+        break;
+    case FN_HARDWARE_VER:
+        resultstream << fnSystem.get_hardware_ver_str();
+        break;
+    case FN_PRINTER_LIST:
+        {
+            char *result = (char *) malloc(MAX_PRINTER_LIST_BUFFER);
+            if (result != NULL)
+            {
+                strcpy(result, "");
+
+                for(int i=0; i<(int) PRINTER_CLASS::PRINTER_INVALID; i++)
+                {
+                    strncat(result, "<option value=\"", MAX_PRINTER_LIST_BUFFER-1);
+                    strncat(result, PRINTER_CLASS::printer_model_str[i], MAX_PRINTER_LIST_BUFFER-1);
+                    strncat(result, "\">", MAX_PRINTER_LIST_BUFFER - strlen(result) - 1);
+                    strncat(result, PRINTER_CLASS::printer_model_str[i], MAX_PRINTER_LIST_BUFFER-1);
+                    strncat(result, "</option>\n", MAX_PRINTER_LIST_BUFFER-1);
+                }
+                resultstream << result;
+                free(result);
+            } else
+                resultstream << "Insufficent memory";
+        }
+        break;
+    case FN_ENCRYPT_PASSPHRASE_ENABLED:
+        resultstream << Config.get_general_encrypt_passphrase();
+        break;
+    case FN_CPM_ENABLED:
+        resultstream << Config.get_cpm_enabled();
+        break;
+    case FN_CPM_CCP:
+        resultstream << Config.get_ccp_filename();
+        break;
+    case FN_ALT_CFG:
+        resultstream << Config.get_config_filename();
+        break;
+
+    case FN_GDRIVE_CONNECTED:
+        resultstream << (Config.get_gdrive_refresh_token().empty() ? "0" : "1");
+        break;
+    case FN_ONEDRIVE_CONNECTED:
+        resultstream << (Config.get_onedrive_refresh_token().empty() ? "0" : "1");
+        break;
+    case FN_PASSWORD_SET:
+        resultstream << (fnPassword.is_set() ? "1" : "0");
+        break;
+    case FN_APPKEY_COUNT:
+        resultstream << AppKeyManager::count();
+        break;
+#ifdef BUILD_MAC
+    case FN_MAC_SLOTS:
+        resultstream << mac_slots_json();
+        break;
+#endif
+    default:
+        resultstream << tag;
+        break;
+    }
+    // Debug_printf("Substitution result: \"%s\"\n", resultstream.str().c_str());
+    return resultstream.str();
+}
+
+bool fnHttpServiceParser::is_parsable(const char *extension)
+{
+    if (extension != NULL)
+    {
+        if (strncmp(extension, "html", 4) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* Look for anything between <% and %> tags
+ And send that to a routine that looks for suitable substitutions
+ Returns string with subtitutions in place
+*/
+string fnHttpServiceParser::parse_contents(const string &contents)
+{
+    std::stringstream ss;
+    size_t pos = 0, x, y;
+    do
+    {
+        x = contents.find("<%", pos);
+        if (x == string::npos)
+        {
+            ss << contents.substr(pos);
+            break;
+        }
+        // Found opening tag, now find ending
+        y = contents.find("%>", x + 2);
+        if (y == string::npos)
+        {
+            ss << contents.substr(pos);
+            break;
+        }
+        // Now we have starting and ending tags
+        if (x > 0)
+            ss << contents.substr(pos, x - pos);
+        ss << substitute_tag(contents.substr(x + 2, y - x - 2));
+        pos = y + 2;
+    } while (true);
+
+    return ss.str();
+}
+
+long fnHttpServiceParser::uptime_seconds()
+{
+    return fnSystem.get_uptime() / 1000000;
+}
+
+string fnHttpServiceParser::format_uptime()
+{
+    int64_t ms = fnSystem.get_uptime();
+    long s = ms / 1000000;
+
+    int m = s / 60;
+    int h = m / 60;
+    int d = h / 24;
+
+    std::stringstream resultstream;
+    if (d)
+        resultstream << d << " days, ";
+    if (h % 24)
+        resultstream << (h % 24) << " hours, ";
+    if (m % 60)
+        resultstream << (m % 60) << " minutes, ";
+    if (s % 60)
+        resultstream << (s % 60) << " seconds";
+
+    return resultstream.str();
+}

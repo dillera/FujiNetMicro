@@ -1,0 +1,203 @@
+#ifndef RS232_H
+#define RS232_H
+
+#include "bus.h"
+#include "UARTChannel.h"
+#include "ACMChannel.h"
+#include "FujiBusPacket.h"
+#include "BoIPChannel.h"
+#include "global_types.h"
+
+#ifdef ESP_PLATFORM
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#endif /* ESP_PLATFORM */
+
+#include <atomic>
+#include <map>
+
+#define RS232_BAUDRATE 115200
+
+#define FUJI_COMMAND_PACKET FujiBusPacket
+
+#if !defined(ESP_PLATFORM) || \
+    (FN_UART_BUS == UART_NUM_1 && defined(PIN_UART1_RX)) ||     \
+    (FN_UART_BUS == UART_NUM_2 && defined(PIN_UART2_RX))
+#undef FUJINET_OVER_USB
+#else
+#define FUJINET_OVER_USB 1
+#endif
+
+typedef enum class STATREQ {
+    CONNERR    = 0,
+    IP         = 1,
+    NETMASK    = 2,
+    GATEWAY    = 3,
+    DNS        = 4,
+
+    MOUNT_TIME = 1,
+} FujiStatusReq;
+
+// helper functions
+uint8_t rs232_checksum(uint8_t *buf, unsigned short len);
+
+// class def'ns
+class rs232Modem;    // declare here so can reference it, but define in modem.h
+class rs232Fuji;     // declare here so can reference it, but define in fuji.h
+class systemBus;      // declare early so can be friend
+class rs232Network;  // declare here so can reference it, but define in network.h
+class rs232NetStream; // declare here so can reference it, but define in netstream.h
+class rs232Cassette; // Cassette forward-declaration.
+class rs232CPM;      // CPM device.
+class rs232Printer;  // Printer device
+class fujiDevice;
+
+class virtualDevice
+{
+    friend systemBus;
+    friend fujiDevice;
+
+protected:
+    bool listen_to_type3_polls = false;
+
+    /**
+     * @brief All RS232 devices repeatedly call this routine to fan out to other methods for each command.
+     * This is typcially implemented as a switch() statement.
+     */
+    virtual void rs232_process(const FujiBusPacket &packet) = 0;
+
+    // Optional shutdown/reboot cleanup routine
+    virtual void shutdown(){};
+
+public:
+    /**
+     * @brief get the RS232 device Number (1-255)
+     * @return The device number registered for this device
+     */
+    fujiDeviceID_t id();
+
+    /**
+     * @brief Is this virtualDevice holding the virtual disk drive used to boot CONFIG?
+     */
+    bool is_config_device = false;
+
+    /**
+     * @brief is device active (turned on?)
+     */
+    bool device_active = true;
+
+    /**
+     * @brief status wait counter
+     */
+    uint8_t status_wait_count = 5;
+};
+
+enum rs232_message : uint16_t
+{
+    RS232MSG_DISKSWAP,  // Rotate disk
+    RS232MSG_DEBUG_TAPE // Tape debug msg
+};
+
+struct rs232_message_t
+{
+    rs232_message message_id;
+    uint16_t message_arg;
+};
+
+// typedef rs232_message_t rs232_message_t;
+
+class systemBus : public SystemBusBase
+{
+private:
+    FujiBusPacket *_activePacket;
+    size_t _activePacketDataPosition;
+
+    int _command_frame_counter = 0;
+    std::atomic<unsigned> _packets_handled{0};
+    std::atomic<unsigned> _stray_bytes{0};
+
+    virtualDevice *_activeDev = nullptr;
+    rs232Modem *_modemDev = nullptr;
+    rs232Fuji *_fujiDev = nullptr;
+    std::map<uint8_t,rs232Network *> _netDev;
+    rs232NetStream *_streamDev = nullptr;
+    rs232CPM *_cpmDev = nullptr;
+    rs232Printer *_printerdev = nullptr;
+
+    int _rs232Baud = RS232_BAUDRATE;
+
+    IOChannel *_port;
+#if FUJINET_OVER_USB
+    ACMChannel _serial;
+    bool _usb_boot_priority = false;  // boosted until WiFi connects
+#else /* ! FUJINET_OVER_USB */
+    UARTChannel _serial;
+#endif /* FUJINET_OVER_USB */
+    BoIPChannel _boip;
+
+    void _rs232_process_cmd();
+    /* void _rs232_process_queue(); */
+
+public:
+    void setup();
+    void service();
+    void shutdown();
+
+    void addDevice(virtualDevice *pDevice, fujiDeviceID_t device_id) override;
+
+    bool isBoIP() { return _port == &_boip; }
+    // For a service that borrows the port between commands (see src/main.cpp).
+    IOChannel &port() { return *_port; }
+    // Well-formed packets dispatched so far, to tell a live host from noise.
+    unsigned packetsHandled() const { return _packets_handled; }
+    // Bytes that arrived outside any packet, e.g. a 9600-baud HotSync start.
+    unsigned strayBytes() const { return _stray_bytes; }
+
+    int getBaudrate();                                          // Gets current RS232 baud rate setting
+    void setBaudrate(int baud);                                 // Sets RS232 to specific baud rate
+
+    void setStreamHost(const char *newhost, int port);             // Set new host/ip & port for NetStream
+
+    rs232Printer *getPrinter() { return _printerdev; }
+    rs232CPM *getCPM() { return _cpmDev; }
+
+
+    bool shuttingDown = false;                                  // TRUE if we are in shutdown process
+    bool getShuttingDown() { return shuttingDown; };
+
+    std::string nativeEOL() override { return "\r\n"; }
+
+    void transaction_accept(transState_t expectMoreData) override;
+    void transaction_success() override;
+    void transaction_error() override;
+    using SystemBusBase::transaction_get;
+    success_is_true transaction_get(void *data, size_t len) override;
+    using SystemBusBase::transaction_send;
+    void transaction_send(const void *data, size_t len, bool is_error=false) override;
+
+    std::unique_ptr<FujiBusPacket> readBusPacket(int first=-1);
+    void writeBusPacket(FujiBusPacket &packet);
+    void sendReplyPacket(fujiDeviceID_t source, bool ack, const void *data, size_t length);
+    template<typename... Args>
+    std::unique_ptr<FujiBusPacket> sendCommand(fujiDeviceID_t device,
+                                               fujiCommandID_t command,
+                                               Args&&... args)
+    {
+        FujiBusPacket packet(device, command, std::forward<Args>(args)...);
+        writeBusPacket(packet);
+        return readBusPacket();
+    }
+
+    // Convenience wrapper: raw buffer
+    std::unique_ptr<FujiBusPacket> sendCommand(fujiDeviceID_t device,
+                                               fujiCommandID_t command,
+                                               void *buf, size_t len)
+    {
+        std::string data(reinterpret_cast<const char*>(buf), static_cast<size_t>(len));
+        return sendCommand(device, command, std::move(data));
+    }
+};
+
+extern systemBus SYSTEM_BUS;
+
+#endif /* RS232_H */

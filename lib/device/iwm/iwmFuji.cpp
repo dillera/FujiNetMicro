@@ -1,0 +1,320 @@
+#ifdef BUILD_APPLE
+
+#include "iwmFuji.h"
+#include "httpService.h"
+#include "fnSystem.h"
+#include "utils.h"
+#include "compat_string.h"
+#include "fuji_endian.h"
+
+#define DIR_MAX_LEN 40
+#define IMAGE_EXTENSION ".po"
+#define LOBBY_URL       "tnfs://tnfs.fujinet.online/APPLE2/_lobby.po"
+
+iwmFuji platformFuji;
+fujiDevice *theFuji = &platformFuji; // Global fuji object.
+
+iwmFuji::iwmFuji() : fujiDevice(MAX_A2DISK_DEVICES, IMAGE_EXTENSION, LOBBY_URL)
+{
+        Debug_printf("Announcing the iwmFuji::iwmFuji()!!!\n");
+        for (int i = 0; i < MAX_HOSTS; i++)
+                _fnHosts[i].slotid = i;
+
+    control_handlers = {
+        { (fujiCommandID_t) 0xAA, [this](const iwm_decoded_cmd_t &cmd)                               { this->iwm_dummy_command(cmd); }},
+        { (fujiCommandID_t) SP_CTRL_SET_DCB, [this](const iwm_decoded_cmd_t &cmd)                   { this->iwm_dummy_command(cmd); }},
+        { (fujiCommandID_t) SP_CTRL_SET_NEWLINE, [this](const iwm_decoded_cmd_t &cmd)               { this->iwm_dummy_command(cmd); }},
+
+        { CMD::FUJI_DISABLE_DEVICE, [this](const iwm_decoded_cmd_t &cmd)             { this->iwm_ctrl_disable_device(cmd); }},
+        { CMD::FUJI_ENABLE_DEVICE, [this](const iwm_decoded_cmd_t &cmd)              { this->iwm_ctrl_enable_device(cmd); }},
+
+        { CMD::FUJI_NEW_DISK, [this](const iwm_decoded_cmd_t &cmd)                   { this->iwm_ctrl_new_disk(cmd); }},
+
+#ifdef DEV_RELAY_SLIP
+        { (fujiCommandID_t) SP_CTRL_CLEAR_DISKII_SEEN, [this](const iwm_decoded_cmd_t &cmd)              { SYSTEM_BUS.transaction_error(SP_ERR::NODRIVE); }},
+#else
+        { (fujiCommandID_t) SP_CTRL_CLEAR_DISKII_SEEN, [this](const iwm_decoded_cmd_t &cmd)              { diskii_xface.d2_enable_seen = 0; SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET); SYSTEM_BUS.transaction_success(); }},
+#endif
+    };
+
+    status_handlers = {
+        { (fujiCommandID_t) 0xAA, [this](const iwm_decoded_cmd_t &cmd)                               { this->iwm_hello_world(); }},
+
+#ifndef DEV_RELAY_SLIP
+        { (fujiCommandID_t) SP_STAT_GET_DISKII_SEEN, [this](const iwm_decoded_cmd_t &cmd)                  {
+            SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET);
+            SYSTEM_BUS.transaction_send(diskii_xface.d2_enable_seen);
+        }},
+#endif
+
+        { CMD::FUJI_GET_HEAP, [this](const iwm_decoded_cmd_t &cmd)                   { this->iwm_stat_get_heap(); }},
+    };
+
+}
+
+void iwmFuji::iwm_dummy_command(const iwm_decoded_cmd_t &cmd) // SP CTRL command
+{
+        Debug_printf("\r\nData Received: ");
+        for (uint8_t byte : cmd.data().value())
+            Debug_printf(" %02x", byte);
+        SYSTEM_BUS.transaction_success();
+}
+
+void iwmFuji::iwm_hello_world()
+{
+        Debug_printf("\r\nFuji cmd: HELLO WORLD");
+        SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET);
+        SYSTEM_BUS.transaction_send("HELLO WORLD", 11);
+}
+
+//==============================================================================================================================
+
+void iwmFuji::fujicmd_read_directory_entry(size_t maxlen, uint8_t addtl)
+{
+    auto result = fujiDevice::fujicore_read_directory_entry(maxlen, addtl);
+
+    // Hack-o-rama to add file type character to beginning of
+    // path. - this was for Adam, but must keep for CONFIG
+    // compatability; in Apple 2 config will somehow have to work
+    // around these extra chars
+
+    // NOTE: Atari *does not* need this hack! Maybe Apple II CONFIG
+    // should be fixed instead?
+
+    if (result.has_value() && result->size() >= 2
+        && (*result)[0] != 0x7F && (*result)[1] != 0x7F && maxlen == DIR_MAX_LEN)
+        result->insert(0, "  ");
+
+    SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET);
+    SYSTEM_BUS.transaction_send(result->data(), result->size());
+}
+
+void iwmFuji::iwm_stat_get_heap()
+{
+    u32le_t avail;
+#ifdef ESP_PLATFORM
+    avail = esp_get_free_internal_heap_size();
+#else
+    avail = 0;
+#endif
+
+    SYSTEM_BUS.transaction_accept(TRANS_STATE::NO_GET);
+    SYSTEM_BUS.transaction_send(&avail, sizeof(avail));
+    return;
+}
+
+//  Make new disk and shove into device slot
+void iwmFuji::iwm_ctrl_new_disk(const iwm_decoded_cmd_t &cmd)
+{
+    uint8_t hs = cmd.param(0);
+    uint8_t ds = cmd.param(1);
+    uint8_t t = cmd.param(2);
+    u32le_t numBlocks;
+    const char *ptr;
+
+    ptr = cmd.dataAsString()->c_str();
+    memcpy(&numBlocks, ptr, sizeof(numBlocks));
+    ptr += sizeof(numBlocks);
+
+    fujiDisk &disk = _fnDisks[ds];
+    fujiHost &host = _fnHosts[hs];
+
+    if (host.file_exists((const char *) ptr))
+        return;
+
+    disk.host_slot = hs;
+    disk.access_mode = DISK_ACCESS_MODE_WRITE;
+    strlcpy(disk.filename, (const char *) ptr, sizeof(disk.filename));
+
+    disk.fileh = host.fnfile_open(disk.filename, disk.filename, sizeof(disk.filename), "wb");
+
+    Debug_printf("Creating file %s on host slot %u mounting in disk slot %u numblocks: %lu\n", disk.filename, hs, ds, numBlocks);
+
+    DISK_DEVICE *disk_dev = get_disk_dev(ds);
+    disk_dev->write_blank(disk.fileh, numBlocks, t);
+
+    fnio::fclose(disk.fileh);
+
+    // Persist slots
+    populate_config_from_slots();
+    Config.mark_dirty();
+    Config.save();
+}
+
+void iwmFuji::iwm_ctrl_enable_device(const iwm_decoded_cmd_t &cmd)
+{
+  fujiDeviceID_t d = (fujiDeviceID_t) cmd.param8(0);
+
+  Debug_printf("\nFuji cmd: ENABLE DEVICE");
+  SYSTEM_BUS.setDeviceEnabled(d, true);
+}
+
+void iwmFuji::iwm_ctrl_disable_device(const iwm_decoded_cmd_t &cmd)
+{
+  fujiDeviceID_t d = (fujiDeviceID_t) cmd.param8(0);
+
+  Debug_printf("\nFuji cmd: DISABLE DEVICE");
+  SYSTEM_BUS.setDeviceEnabled(d, false);
+}
+
+// Initializes base settings and adds our devices to the SIO bus
+void iwmFuji::setup()
+{
+  populate_slots_from_config();
+
+  // Disable booting from CONFIG if our settings say to turn it off
+  boot_config = Config.get_general_config_enabled();
+
+  // Build the device topology once, to avoid duplicating the daisy chain
+  // and leaking the devices when setup() re-runs on an in-process restart.
+  if (!createdDevices)
+  {
+    // add ourselves as a device
+    SYSTEM_BUS.addDevice(this, FUJI_DEVICEID::FUJINET);
+
+    for (unsigned idx = 0;
+         idx <= ((unsigned) FUJI_DEVICEID::NETWORK_LAST) - ((unsigned) FUJI_DEVICEID::NETWORK);
+         idx++)
+      SYSTEM_BUS.addDevice(new iwmNetwork(),
+                           (fujiDeviceID_t) (((unsigned) FUJI_DEVICEID::NETWORK) + idx),
+                           idx == 0);
+
+    SYSTEM_BUS.addDevice(&platformClock, FUJI_DEVICEID::CLOCK);
+
+    SYSTEM_BUS.addDevice(new iwmCPM(), FUJI_DEVICEID::CPM);
+
+    for (int idx = MAX_SPDISK_DEVICES - 1; idx >= 0; idx--)
+    {
+      DISK_DEVICE *disk_dev = get_disk_dev(idx);
+      disk_dev->set_disk_number('0' + idx);
+      SYSTEM_BUS.addDevice(disk_dev,
+                           (fujiDeviceID_t) (((unsigned) FUJI_DEVICEID::DISK) + idx));
+    }
+
+    createdDevices = true;
+  }
+
+  if (boot_config)
+  {
+    Debug_printf("\nConfig General Boot Mode: %u\n", Config.get_general_boot_mode());
+    insert_boot_device(Config.get_general_boot_mode(), MEDIATYPE_PO, get_disk_dev(0));
+  }
+  else if (!Config.get_config_filename().empty())
+  {
+    Debug_printf("\nInsert Alternate Config Disk: %s\n", Config.get_config_filename().c_str());
+    insert_boot_device(Config.get_config_filename(), MEDIATYPE_PO, get_disk_dev(0));
+  }
+}
+
+iwm_device_status_block_t iwmFuji::create_status_reply_packet()
+{
+  iwm_device_status_block_t status;
+
+  status.code = STATCODE_READ_ALLOWED | STATCODE_DEVICE_ONLINE;
+  status.block_size = 0;
+  return status;
+}
+
+iwm_device_info_block_t iwmFuji::create_dib_reply_packet()
+{
+  iwm_device_info_block_t dib;
+
+  dib.dev_status = create_status_reply_packet();
+  strcpy(dib.name, "THE_FUJI");
+  dib.name_len = strlen(dib.name);
+  dib.type = SP_TYPE_BYTE_FUJINET;
+  dib.subtype = SP_SUBTYPE_BYTE_FUJINET;
+  dib.version = 0x0100;
+
+  return dib;
+}
+
+void iwmFuji::iwm_status(const iwm_decoded_cmd_t &cmd)
+{
+    Debug_printf("\r\n[Fuji] Device %02x Status Code %02x\r\n", id(), cmd.command());
+
+    // Let the base class handle standard commands
+    if (fujiDevice::processCommand(cmd))
+        return;
+
+    auto it = status_handlers.find(cmd.command());
+    if (it != status_handlers.end()) {
+        it->second(cmd);
+    } else {
+        Debug_printf("ERROR: Unhandled status code: %02X\n", cmd.command());
+        SYSTEM_BUS.transaction_error();
+    }
+}
+
+void iwmFuji::iwm_ctrl(const iwm_decoded_cmd_t &cmd)
+{
+    Debug_printf("\ntheFuji Device %02x Control Code %02x", id(), cmd.command());
+
+    // Let the base class handle standard commands
+    if (fujiDevice::processCommand(cmd))
+        return;
+
+    auto it = control_handlers.find(cmd.command());
+    if (it != control_handlers.end()) {
+        it->second(cmd);
+    } else {
+        Debug_printf("ERROR: Unhandled control code: %02X\n", cmd.command());
+        SYSTEM_BUS.transaction_error(SP_ERR::BADCTL);
+    }
+}
+
+void iwmFuji::handle_ctl_eject(uint8_t spid)
+{
+        int ds = 255;
+        for (int i = 0; i < _totalDiskDevices; i++)
+        {
+                if (theFuji->get_disk_dev(i)->id() == spid)
+                {
+                        ds = i;
+                }
+        }
+        if (ds != 255)
+        {
+                theFuji->get_disk(ds)->reset();
+                Config.clear_mount(ds);
+                Config.save();
+                theFuji->populate_slots_from_config();
+        }
+}
+
+void iwmFuji::fujicmd_close_directory()
+{
+    fujiDevice::fujicmd_close_directory();
+    fnSystem.delay(100); // add delay because bad traces
+}
+
+size_t iwmFuji::set_additional_direntry_details(fsdir_entry_t *f, uint8_t *dest,
+                                                uint8_t maxlen)
+{
+    struct {
+        dirEntryTimestamp modified;
+        uint32_t size;
+        uint8_t is_dir;
+        uint8_t is_trunc;
+        uint8_t mediatype;
+    } __attribute__((packed)) custom_details;
+    dirEntryDetails details;
+
+    details = _additional_direntry_details(f);
+    custom_details.modified = details.modified;
+    custom_details.modified.year -= 100;
+    custom_details.size = htole32(details.size);
+    custom_details.is_dir = details.flags & DET_FF_DIR;
+    custom_details.mediatype = details.mediatype;
+
+    maxlen -= sizeof(custom_details);
+    // Subtract a byte for a terminating slash on directories
+    if (custom_details.is_dir)
+        maxlen--;
+
+    custom_details.is_trunc = strlen(f->filename) >= maxlen ? DET_FF_TRUNC : 0;
+    memcpy(dest, &custom_details, sizeof(custom_details));
+    return sizeof(custom_details);
+}
+
+#endif /* BUILD_APPLE */
