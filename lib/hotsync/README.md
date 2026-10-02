@@ -39,7 +39,7 @@ The SD card layout, under `/palm`:
 | `install/`          | `.prc`, `.pdb`, `.pqa` files to install on next sync   |
 | `installed/`        | files moved here after a successful install           |
 | `backup/<user>/`    | databases read back from the device                    |
-| `state/<user>/`     | `datebook.map`: the Date Book records the calendar made |
+| `state/<user>-<id>/` | `datebook.map`: the Date Book records the calendar made |
 
 ## The calendar
 
@@ -54,7 +54,8 @@ Each sync copies those events into DatebookDB, one way:
 - an event becomes an appointment; an all-day event an untimed one, repeating
   daily when it spans days; one that runs past midnight stops at 23:59;
 - the location goes in the appointment's note;
-- an event that changes is rewritten, and one that is cancelled is deleted;
+- an event that changes is rewritten, and one that is cancelled is deleted,
+  unless the copy was edited on the Palm;
 - appointments made on the Palm are never touched, and neither is a copied one
   that was edited on the Palm and then cancelled in the calendar.
 
